@@ -23,8 +23,19 @@
       
       <template x-if="status === 'failed'">
         <div>
-          <div class="text-4xl mb-4">⚠️</div>
-          <p class="text-xl mb-4">Server not found</p>
+          <div class="text-4xl mb-4 text-red-500">❌</div>
+          <p class="text-xl mb-4 text-red-400 font-bold">Server not found</p>
+          
+          <!-- Debug log -->
+          <div class="bg-black rounded p-3 mb-4 text-left text-xs font-mono max-h-48 overflow-y-auto">
+            <template x-for="(msg, i) in discoLog" :key="i">
+              <div :class="msg.includes('SUCCESS') ? 'text-green-400' : msg.includes('ERROR') ? 'text-red-400' : 'text-gray-400'" x-text="msg"></div>
+            </template>
+            <template x-if="!discoLog.length">
+              <div class="text-gray-500">No debug info available</div>
+            </template>
+          </div>
+          
           <div class="bg-gray-800 rounded p-4">
             <p class="text-sm text-gray-400 mb-2">Enter server IP manually:</p>
             <div class="flex gap-2">

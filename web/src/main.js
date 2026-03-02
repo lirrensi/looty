@@ -23,16 +23,21 @@ Alpine.data('app', () => ({
     })
   },
   
+  disco: null,
+  
+  discoLog: [],
+  
   async discoverServer() {
     const disco = discovery()
+    this.discoLog = disco.log
     const ip = await disco.findServer()
+    this.discoLog = [...disco.log]  // Force reactivity
     
     if (ip) {
       this.serverIP = ip
       this.connected = true
       this.status = 'connected'
-      // Redirect or set API base URL
-      window.API_BASE = `http://${ip}:8080`
+      window.API_BASE = `http://${ip}:41111`
     } else {
       this.status = 'failed'
     }
@@ -48,7 +53,7 @@ Alpine.data('app', () => ({
       this.serverIP = this.manualIP
       this.connected = true
       this.status = 'connected'
-      window.API_BASE = `http://${this.manualIP}:8080`
+      window.API_BASE = `http://${this.manualIP}:41111`
     }
   },
 }))
