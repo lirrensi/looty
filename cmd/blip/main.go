@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/user/looty/internal/server"
+	"github.com/lirrensi/looty/internal/server"
 )
 
 func getLocalIPs() []string {

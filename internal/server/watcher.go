@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/user/looty/internal/clipboard"
+	"github.com/lirrensi/looty/internal/clipboard"
 )
 
 func StartWatcher(dir string) {

@@ -1,4 +1,4 @@
-# Blip
+# Looty
 
 Zero-config file access and clipboard sync between desktop and mobile on local network.
 
@@ -6,7 +6,7 @@ Zero-config file access and clipboard sync between desktop and mobile on local n
 
 ## What It Is
 
-Drop `blip.exe` in any folder. Run it. Open `blip.html` on your phone. Done — you have instant access to that folder and a synced clipboard.
+Drop `looty.exe` in any folder. Run it. Open `looty.html` on your phone. Done — you have instant access to that folder and a synced clipboard.
 
 No configuration. No accounts. No cloud. Just works.
 
@@ -26,13 +26,13 @@ No configuration. No accounts. No cloud. Just works.
 ## How It Works
 
 ```
-1. User copies blip.exe to a folder
-2. User runs blip.exe
-   - Server starts on port 8080
-   - blip.html is extracted to the same folder (if not present)
-3. User copies blip.html to phone (once, ever)
-4. User opens blip.html on phone
-   - Auto-scans local network for blip.exe server
+1. User copies looty.exe to a folder
+2. User runs looty.exe
+   - Server starts on port 41111
+   - looty.html is extracted to the same folder (if not present)
+3. User copies looty.html to phone (once, ever)
+4. User opens looty.html on phone
+   - Auto-scans local network for looty.exe server
    - Connects to first server found
 5. User browses files, uploads, downloads, uses clipboard
 ```
@@ -44,21 +44,141 @@ No configuration. No accounts. No cloud. Just works.
 ### File Browser
 - List files and folders in the served directory
 - Navigate into subfolders
-- Preview text files (.txt, .md, .json, .log, .js, .css, .html)
-- Preview images (.jpg, .png, .gif, .webp)
-- Download any file to phone
-- Upload files from phone to current folder
-
-### Clipboard Sync
-- Text input on phone → instantly appears on desktop
-- Text input on desktop → instantly appears on phone
-- History of last 10 clipboard items
-- One-click copy to system clipboard
-
-### Real-time Updates
-- File changes on desktop → all connected devices refresh
+- **Breadcrumb navigation** with individual folder click
+- **Up button** for quick navigation
+- **Sort options**: Name (A→Z, Z→A), Date (Newest, Oldest)
+- **File preview** for text files and images
+- **Binary detection** (server-side) to avoid showing binary content
+- **Download any file** to phone
+- **Upload files** from phone to current folder (max 100MB)
+- **Real-time updates** when files change on desktop
 - Multiple devices can connect simultaneously
-- Auto-reconnect on connection loss
+
+### Clipboard Sync (Scratchpad)
+- **Real-time text sync** across all connected devices
+- **Type on phone → appears on desktop instantly**
+- **Type on desktop → appears on phone instantly**
+- **History panel** showing last 50 items
+- **Click history item** to restore it
+- **Copy to clipboard** button with fallback for older browsers
+- Debounced sync to avoid spamming
+
+### Discovery
+- **Fast path**: Checks current host first (instant for local testing)
+- **Second path**: Checks localhost
+- **Fallback path**: Auto-detects subnet and scans 1-254 IPs
+- **Debug log** shows all discovery attempts
+- **Manual IP entry** fallback if auto-discovery fails
+- **Success indicators**: Green dot for connected, yellow for searching
+
+### Technical Features
+- **Single executable** (~15MB)
+- **Single HTML file** for mobile
+- **Embedded assets** (icons, styles)
+- **Build time injection** (optional timestamp in UI)
+- **Auto-reconnect** WebSocket on connection loss
+- **File watching** on desktop server
+
+---
+
+## User Interface
+
+### Desktop (looty.exe)
+- Command-line output with:
+  - Served directory path
+  - Available IP addresses
+  - Access URLs (http://IP:41111)
+  - Instructions for copying looty.html to phone
+
+### Mobile (looty.html)
+- **Dark theme** optimized for mobile
+- **Discovery overlay** with status and debug log
+- **Header**: Shows connection status (green/yellow dot)
+- **Breadcrumb navigation**: Click any folder to navigate
+- **Up button**: Quick return to parent folder
+- **Sort bar**: Toggle between sort modes
+- **File list**: Click files/folders, shows preview panel below
+- **Preview panel**: Shows text content, images, or binary file message
+- **Upload progress**: Visual progress bar
+- **Download progress**: Visual progress bar
+- **Bottom bar**: Upload button, Scratchpad button, Refresh button
+
+### Scratchpad Panel
+- **Full-screen overlay** with dark theme
+- **Main textarea**: Large editing area for scratchpad content
+- **History sidebar**: Shows last 50 items on the right
+- **Connection status**: Shows connecting/connected/disconnected state
+- **Auto-sync**: Every 300ms debounce while typing
+
+---
+
+## File Preview Support
+
+### Text Files
+- `.txt`
+- `.md`
+- `.json`
+- `.log`
+- `.js`
+- `.css`
+- `.html`
+- `.py`
+- `.rs`
+- `.go`
+- `.c`
+- `.cpp`
+- `.h`
+- `.java`
+- `.rb`
+- `.php`
+- `.sql`
+- `.yaml`
+- `.yml`
+- `.toml`
+- `.xml`
+- `.csv`
+- `.tsv`
+- `.sh`
+- `.bat`
+- `.ps1`
+- `.env`
+- `.config`
+- Any other text-based files
+
+### Image Files
+- `.jpg`
+- `.jpeg`
+- `.png`
+- `.gif`
+- `.webp`
+- `.bmp`
+- `.ico`
+
+### Binary Files
+- Detected by server-side binary check (first 8KB looking for null bytes)
+- Shown with "Binary file" message
+- Download button available
+
+---
+
+## API Endpoints
+
+### HTTP API
+- `GET /` - Serve index.html
+- `GET /ping` - Health check for discovery (returns "pong")
+- `GET /api/files?path={path}` - List files in directory
+- `GET /api/download?path={path}` - Download file
+- `POST /api/upload` - Upload file (max 100MB)
+- `POST /api/scratchpad` - Update scratchpad content
+- `GET /api/scratchpad` - Get current scratchpad content
+- `OPTIONS /` and `OPTIONS /api/*` - CORS preflight support
+
+### WebSocket
+- `ws://host:41111/ws` - Real-time sync endpoint
+- **Message types**:
+  - `{"type":"clipboard","data":"text"}` - Clipboard sync
+  - `{"type":"scratchpad","data":"text"}` - Scratchpad sync
+  - `{"type":"refresh","data":""}` - File change notification
 
 ---
 
@@ -66,56 +186,187 @@ No configuration. No accounts. No cloud. Just works.
 
 | Component | Technology |
 |-----------|------------|
-| Server | Go (single binary) |
-| Frontend | Vite + Alpine.js + Tailwind |
-| Frontend Output | Single HTML file (inlined) |
-| Real-time | WebSocket |
-| File watching | fsnotify |
+| Server | Go 1.25.5 |
+| Frontend | Vite 7.3.1 + Alpine.js 3.15.8 + Tailwind CSS 4.2.1 |
+| Frontend Output | Single HTML file (Vite plugin singlefile) |
+| Real-time | WebSocket (gorilla/websocket 1.5.3) |
+| File watching | fsnotify 1.9.0 |
+| Build | Go ldflags for build time injection |
 
 ---
 
 ## Distribution
 
 ```
-blip.exe          # ~15MB, self-contained Go binary
-  ├── embeds: index.html (single file UI)
-  └── extracts: blip.html (on first run, for phone)
+looty.exe          # ~15MB, self-contained Go binary
+  ├── embeds: assets/index.html (single file UI)
+  └── extracts: looty.html (on first run, for phone)
 
-blip.html         # Copied to phone once, works forever
+looty.html         # Copied to phone once, works forever
 ```
 
 ---
 
-## Security Model (MVP)
+## Security Model
 
-- No authentication — anyone on LAN can access
-- HTTP only — no encryption (local network only)
-- Serves ONLY the folder it's in — no parent directory traversal
-- Port scanning limited to local subnet
+### Current Implementation
+- **No authentication** — anyone on LAN can access
+- **HTTP only** — no encryption (local network only)
+- **Path traversal protection** — absolute path validation prevents directory traversal
+- **Port 41111** — dedicated port, not a standard service
+- **Serves ONLY the folder it's in** — cannot access parent directories
 
-*Future: optional password, HTTPS, read-only mode*
+### Future Enhancements (Not Implemented)
+- Optional password protection
+- HTTPS/TLS encryption
+- Read-only mode for shared folders
+- User authentication with LAN IP restrictions
+- File access logging
+
+### Security Considerations
+- Use only on trusted local networks
+- Don't expose to public internet
+- Regularly update executable to get security patches
+- Firewall rules can restrict access to specific devices
 
 ---
 
 ## User Experience Goals
 
-- Time to first connection: < 10 seconds
-- Zero configuration required
-- Works on any local network (home, office, coffee shop)
-- Mobile-first interface
-- Graceful degradation (manual IP entry if discovery fails)
+- **Time to first connection**: < 10 seconds (usually < 3 seconds)
+- **Zero configuration required** — just run and go
+- **Works on any local network** — home, office, coffee shop
+- **Mobile-first interface** — touch-optimized UI
+- **Graceful degradation** — manual IP entry if discovery fails
+- **Visual feedback** — progress bars, status indicators, toast messages
+- **Error handling** — clear error messages with debug information
 
 ---
 
-## What Blip Is Not
+## What Looty Is Not
 
-- Not a cloud sync service (no Dropbox/S3)
+- Not a cloud sync service (no Dropbox/S3/OneDrive)
 - Not a file versioning system
 - Not a multi-folder server
 - Not a public internet tool (LAN only)
+- Not a P2P network (server-client model)
+- Not a file transfer protocol (FTP/SFTP)
+- Not a backup solution
 
 ---
 
 ## Success
 
 One executable. One HTML file. Open both. They find each other. You're done.
+
+---
+
+## Version History
+
+### v1.0 (Current)
+- Zero-config file browser with preview
+- Real-time clipboard sync (scratchpad)
+- Auto-discovery with subnet scanning
+- File watching and real-time updates
+- Breadcrumb navigation and sorting
+- Upload/download with progress tracking
+- Binary file detection
+- Multi-device support
+
+---
+
+## Platform Support
+
+### Desktop Server
+- **Windows**: 64-bit (tested)
+- **macOS**: 64-bit (compatible)
+- **Linux**: 64-bit (compatible)
+
+### Mobile Client
+- **iOS**: Safari, Chrome, Firefox (any modern browser)
+- **Android**: Chrome, Firefox, Safari (any modern browser)
+- **Requirements**: Modern browser with JavaScript, WebSocket support
+
+---
+
+## Known Limitations
+
+- No file deletion API (read-only in MVP)
+- No folder creation API
+- No file renaming API
+- No search functionality
+- No file metadata editing
+- No folder permissions
+- No upload queue management
+- No download resume
+- No thumbnail generation
+- No text editing with server-side persistence
+- No collaborative editing
+- No offline mode
+
+---
+
+## Troubleshooting
+
+### Server not found
+1. Check server is running on desktop
+2. Verify firewall allows port 41111
+3. Check server output for IP addresses
+4. Try manual IP entry in discovery screen
+
+### Clipboard not syncing
+1. Verify both devices are connected
+2. Check WebSocket connection in Scratchpad panel
+3. Ensure both devices are on same LAN
+4. Try refreshing page
+
+### Files not updating
+1. Check file watcher is running (server logs will show "File changed")
+2. Refresh file browser manually
+3. Verify file is within served directory
+
+### Upload fails
+1. Check max file size (100MB limit)
+2. Verify write permissions on server folder
+3. Check disk space
+4. Try uploading smaller file
+
+---
+
+## FAQ
+
+**Q: Can I use it across different networks?**
+A: No, it requires devices to be on the same local network.
+
+**Q: Is my data secure?**
+A: It's HTTP without encryption. Only use on trusted local networks.
+
+**Q: Can multiple phones connect?**
+A: Yes, multiple devices can connect simultaneously.
+
+**Q: Does it work over VPN?**
+A: Yes, as long as devices are on the same virtual network.
+
+**Q: Can I delete files?**
+A: Not yet in v1.0 (upload-only). Future versions may add file management.
+
+**Q: Does it work with external drives?**
+A: Yes, if the drive is mapped and accessible by the server's user.
+
+**Q: Can I customize the UI?**
+A: Yes, modify the source HTML and rebuild.
+
+**Q: Can I use it for commercial projects?**
+A: Yes, MIT license allows commercial use.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) (if exists) or see README.md for contribution guidelines.
+
+---
+
+## License
+
+MIT License - see LICENSE file for details.

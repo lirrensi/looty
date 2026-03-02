@@ -1,76 +1,136 @@
-# Looty
+# Looty 🐱
 
-Portable file sync & clipboard sharing between desktop and mobile on your local network. Zero config, auto-discovery, single executable.
+A portable file sync & clipboard sharing tool between desktop and mobile on your local network. Zero config, auto-discovery, single executable.
 
-## Quick Start
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/lirrensi/looty/latest/total?label=Downloads)](https://github.com/lirrensi/looty/releases/latest)
 
-```bash
-# Run the server (serves current directory)
-./looty
+![Looty](assets/le_cat.jpg)
 
-# Or run from source (Go)
-go run ./cmd/blip
+---
 
-# Or run the web dev server
-cd web && pnpm dev
+## ✨ Features
+
+- 📱 **Zero-Config**: Auto-discovery on local network
+- 🔄 **File Sync**: Drag & drop files between your desktop and phone
+- 📋 **Clipboard Sync**: Copy text/pixels from desktop to mobile
+- 💾 **Scratchpad**: Quick note-taking between devices
+- 🌐 **Local Only**: No internet required, completely private
+- 🚀 **Portable**: Single executable, runs anywhere
+
+---
+
+## 🚀 Quick Start
+
+### Windows
+```powershell
+# Download the latest release
+irm https://github.com/lirrensi/looty/releases/latest/download/looty-windows-x86_64.zip | iex
 ```
 
-## Install (One-time)
-
-### Windows (PowerShell)
+Or manually:
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_GITHUB_USER/BlipSync/main/install.ps1 | iex
+# Run looty in any folder
+looty.exe
 ```
 
 ### macOS / Linux
 ```bash
-curl -sL https://raw.githubusercontent.com/YOUR_GITHUB_USER/BlipSync/main/install.sh | bash
+# Download the latest release
+curl -sL https://github.com/lirrensi/looty/releases/latest/download/looty-linux-x86_64.tar.gz | tar xz
+chmod +x looty
+
+# Run looty in any folder
+./looty
 ```
 
-After install, run `looty` from ANY folder — it will serve that folder on your network!
+---
 
-## Project Structure
+## 📱 How It Works
 
+1. **Run Looty** on your desktop in any folder
+2. **Copy `looty.html`** from the looty.exe directory to your phone
+3. **Open in browser** - your phone will auto-discover your desktop
+4. **Done!** File sync and clipboard sharing work instantly
+
+### Desktop URLs
+After running, Looty will show you these URLs:
 ```
-BlipSync/
-├── cmd/blip/           # Main entry point
-├── internal/           # Core server logic
-│   ├── server/         # HTTP + WebSocket server
-│   ├── clipboard/      # Clipboard sync
-│   └── files/          # File operations
-├── web/                # Frontend (Vite + Alpine + Tailwind)
-├── embed/              # Embedded assets
-├── install.ps1         # Windows install script
-├── install.sh          # macOS/Linux install script
-└── .github/workflows/  # CI/CD for releases
+http://192.168.1.X:41111
+http://localhost:41111
 ```
 
-## Development
+---
 
-### Backend (Go)
+## 📦 Building from Source
+
+### Prerequisites
+- Go 1.25.5+
+- Node.js 20+
+- pnpm
+
+### Build
 ```bash
-go run ./cmd/blip
+# Clone the repo
+git clone https://github.com/lirrensi/looty.git
+cd looty
+
+# Install frontend dependencies
+cd web && npm install && cd ..
+
+# Build
+make build
 ```
 
-### Frontend (Web)
+The executable will be created in the root directory.
+
+---
+
+## 🛠️ Development
+
+### Start the web dev server
 ```bash
 cd web
 pnpm install
 pnpm dev
 ```
 
-### Build for release
+### Run tests
 ```bash
-make build
+cd web
+pnpm test
 ```
 
-## Usage
+---
 
-1. Run `looty` in any folder on your desktop
-2. Copy the generated `looty.html` to your phone
-3. Open `looty.html` in your phone's browser
-4. Auto-discovery connects your phone to your desktop instantly!
+## 📁 Project Structure
 
-## License
+```
+looty/
+├── cmd/blip/           # Main entry point
+├── internal/
+│   ├── clipboard/      # Clipboard sync logic
+│   ├── files/          # File upload/download handlers
+│   └── server/         # HTTP + WebSocket server
+├── web/                # Frontend (Vite + Alpine + Tailwind)
+├── embed/              # Embedded assets
+└── assets/
+    └── le_cat.jpg      # Looty mascot 🐱
+```
 
-MIT
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🐱 Made with ❤️ for the local network

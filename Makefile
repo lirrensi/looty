@@ -7,13 +7,13 @@ all: build run
 build:
 	@echo "=== BUILDING ==="
 	cd web && npm run build
-	go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(shell date /t && time /t)" -o looty.exe ./cmd/blip
+	go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')" -o looty ./cmd/blip
 	@echo "=== DONE ==="
 
 # Run the server
 run:
 	@echo "=== STARTING ==="
-	.\looty.exe
+	./looty
 
 # Run web dev server
 dev:
@@ -25,5 +25,5 @@ install:
 
 # Clean build artifacts
 clean:
-	rm -f looty.exe looty.html
+	rm -f looty looty.html
 	rm -rf web/dist

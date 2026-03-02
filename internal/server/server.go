@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/user/looty/internal/clipboard"
-	"github.com/user/looty/internal/files"
+	"github.com/lirrensi/looty/internal/clipboard"
+	"github.com/lirrensi/looty/internal/files"
 )
 
 // BuildTime is set via ldflags at build time

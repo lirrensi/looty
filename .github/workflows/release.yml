@@ -117,7 +117,7 @@ jobs:
           # Looty Install Script for Windows
           param(
               [string]$Version = "latest",
-              [string]$Repo = "YOUR_GITHUB_USER/BlipSync"
+              [string]$Repo = "lirrensi/looty"
           )
 
           $ErrorActionPreference = "Stop"
@@ -171,7 +171,7 @@ jobs:
           #!/bin/bash
           # Looty Install Script for macOS/Linux
           
-          REPO="YOUR_GITHUB_USER/BlipSync"
+           REPO="lirrensi/looty"
           VERSION="latest"
           
           # Detect OS and architecture
