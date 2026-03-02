@@ -1,4 +1,4 @@
-module github.com/user/blip
+module github.com/user/looty
 
 go 1.25.5
 

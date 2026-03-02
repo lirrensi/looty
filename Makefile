@@ -1,34 +1,48 @@
-.PHONY: run build dev install clean
+.PHONY: run build dev install clean nuke web
 
-# Default target - build AND run!
-all: build run
+# Default target - NUKE EVERYTHING, rebuild fresh, AND run
+all: nuke web go run
 
-# Build AND run in one command
-run: build
-	./blip.exe
+# Build everything and run
+build: nuke web go
 
-# Build BOTH frontend HTML AND Go binary
-build: build-web build-go
+# Just rebuild web and go (no nuke)
+fresh: web go
 
-# Build frontend HTML (Vite -> embed/)
-build-web:
-	cd web && pnpm run build
+# NUCLEAR OPTION - delete ALL build artifacts
+nuke:
+	@echo "=== NUKING ALL BUILD ARTIFACTS ==="
+	rm -f looty.exe
+	rm -f looty.html
+	rm -rf web/dist
+	rm -rf web/.vite
+	rm -rf cmd/blip/.vite
+	@echo "=== CLEAN COMPLETE ==="
 
-# Build Go binary
-build-go:
-	go build -o blip.exe ./cmd/blip
+# Build frontend HTML (Vite -> cmd/blip/)
+web:
+	@echo "=== BUILDING WEB FRONTEND ==="
+	cd web && npm run build
+	@echo "=== WEB BUILD COMPLETE ==="
+
+# Build Go binary (embeds fresh index.html)
+go:
+	@echo "=== BUILDING GO BINARY ==="
+	go build -o looty.exe ./cmd/blip
+	@echo "=== GO BUILD COMPLETE ==="
+
+# Run the server
+run:
+	@echo "=== STARTING SERVER ==="
+	.\looty.exe
 
 # Run web dev server
 dev:
-	cd web && pnpm dev
+	cd web && npm run dev
 
 # Install web dependencies
 install:
-	cd web && pnpm install
-
-# Clean build artifacts
-clean:
-	rm -f blip.exe
+	cd web && npm install
 
 # Full setup: install deps and build
 setup: install build

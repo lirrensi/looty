@@ -1,0 +1,279 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # Build frontend once (shared across all platforms)
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Upload frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend
+          path: |
+            cmd/blip/index.html
+            embed/index.html
+
+  # Build for all platforms
+  build:
+    needs: frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: looty-windows
+            ext: .exe
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            artifact: looty-windows-arm64
+            ext: .exe
+            goos: windows
+            goarch: arm64
+          - os: macos-latest
+            artifact: looty-macos-arm64
+            ext: ''
+            goos: darwin
+            goarch: arm64
+          - os: macos-latest
+            artifact: looty-macos-x86_64
+            ext: ''
+            goos: darwin
+            goarch: amd64
+          - os: ubuntu-latest
+            artifact: looty-linux-x86_64
+            ext: ''
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            artifact: looty-linux-arm64
+            ext: ''
+            goos: linux
+            goarch: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend
+
+      - name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags="-s -w" -o ${{ matrix.artifact }}${{ matrix.ext }} ./cmd/blip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}${{ matrix.ext }}
+
+  # Create GitHub Release
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create install scripts
+        run: |
+          # Create install.ps1 for Windows
+          cat > install.ps1 << 'SCRIPT'
+          # Looty Install Script for Windows
+          param(
+              [string]$Version = "latest",
+              [string]$Repo = "YOUR_GITHUB_USER/BlipSync"
+          )
+
+          $ErrorActionPreference = "Stop"
+
+          # Detect OS architecture
+          $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") { "x86_64" } else { "arm64" }
+          $Os = "windows"
+
+          # Get latest release
+          $ApiUrl = "https://api.github.com/repos/$Repo/releases/$Version"
+          try {
+              $Response = Invoke-RestMethod -Uri $ApiUrl -UseBasicParsing
+          } catch {
+              Write-Host "Error: Could not fetch release from $Repo" -ForegroundColor Red
+              exit 1
+          }
+
+          # Find matching asset
+          $AssetName = "looty-windows-$Arch.exe"
+          $DownloadUrl = $Response.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1 -ExpandProperty browser_download_url
+
+          if (-not $DownloadUrl) {
+              Write-Host "Error: $AssetName not found in release" -ForegroundColor Red
+              exit 1
+          }
+
+          Write-Host "Downloading $AssetName..." -ForegroundColor Yellow
+          $TempDir = Join-Path $env:TEMP "looty-install"
+          New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+          $DownloadPath = Join-Path $TempDir "looty.exe"
+          Invoke-WebRequest -Uri $DownloadUrl -OutFile $DownloadPath -UseBasicParsing
+
+          # Install
+          $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\looty"
+          New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+          Copy-Item $DownloadPath $InstallDir -Force
+
+          # Add to PATH
+          $CurrentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          if ($CurrentPath -notlike "*$InstallDir*") {
+              [Environment]::SetEnvironmentVariable("Path", "$CurrentPath;$InstallDir", "User")
+              Write-Host "Added to PATH! Restart your terminal." -ForegroundColor Yellow
+          }
+
+          Write-Host "SUCCESS! Installed to: $InstallDir" -ForegroundColor Green
+          Write-Host "Run 'looty' in any folder!" -ForegroundColor Cyan
+          SCRIPT
+
+          # Create install.sh for macOS/Linux
+          cat > install.sh << 'SCRIPT'
+          #!/bin/bash
+          # Looty Install Script for macOS/Linux
+          
+          REPO="YOUR_GITHUB_USER/BlipSync"
+          VERSION="latest"
+          
+          # Detect OS and architecture
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m)
+          
+          case $ARCH in
+              x86_64) ARCH="x86_64" ;;
+              arm64|aarch64) ARCH="arm64" ;;
+          esac
+          
+          # Map uname to asset name
+          case $OS in
+              darwin) OS="macos" ;;
+              linux) OS="linux" ;;
+          esac
+          
+          ASSET_NAME="looty-${OS}-${ARCH}"
+          
+          echo "Installing $ASSET_NAME..."
+          
+          # Get download URL
+          if [ "$VERSION" = "latest" ]; then
+              API_URL="https://api.github.com/repos/$REPO/releases/latest"
+          else
+              API_URL="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
+          fi
+          
+          DOWNLOAD_URL=$(curl -s "$API_URL" | grep -o "\"browser_download_url\": \"[^\"]*${ASSET_NAME}[^\"]*\"" | cut -d'"' -f4)
+          
+          if [ -z "$DOWNLOAD_URL" ]; then
+              echo "Error: Could not find $ASSET_NAME in release"
+              exit 1
+          fi
+          
+          # Download
+          TEMP_DIR=$(mktemp -d)
+          curl -L -o "$TEMP_DIR/looty" "$DOWNLOAD_URL"
+          
+          # Install to ~/.local/bin
+          INSTALL_DIR="$HOME/.local/bin"
+          mkdir -p "$INSTALL_DIR"
+          cp "$TEMP_DIR/looty" "$INSTALL_DIR/"
+          chmod +x "$INSTALL_DIR/looty"
+          
+          # Add to PATH if needed
+          SHELL_RC="$HOME/.bashrc"
+          if [ "$OS" = "macos" ]; then
+              SHELL_RC="$HOME/.zshrc"
+          fi
+          
+          if ! grep -q "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
+              echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_RC"
+              echo "Added $INSTALL_DIR to PATH in $SHELL_RC"
+              echo "Restart your terminal or run: source $SHELL_RC"
+          fi
+          
+          echo "SUCCESS! Installed to: $INSTALL_DIR"
+          echo "Run 'looty' in any folder!"
+          
+          rm -rf "$TEMP_DIR"
+          SCRIPT
+
+      - name: Create zip/tar archives
+        run: |
+          # Create Windows zip with install.ps1
+          cd artifacts
+          cd looty-windows
+          zip ../looty-windows-x86_64.zip looty-windows.exe ../../install.ps1
+          cd ..
+          cd looty-windows-arm64
+          zip ../looty-windows-arm64.zip looty-windows-arm64.exe ../../install.ps1
+          cd ../..
+
+          # Create macOS tar.gz with install.sh
+          cd artifacts/looty-macos-arm64
+          tar czf ../../looty-macos-arm64.tar.gz looty-macos-arm64 ../../../install.sh
+          cd ../..
+          cd looty-macos-x86_64
+          tar czf ../../looty-macos-x86_64.tar.gz looty-macos-x86_64 ../../../install.sh
+          cd ../..
+
+          # Create Linux tar.gz with install.sh
+          cd artifacts/looty-linux-x86_64
+          tar czf ../../looty-linux-x86_64.tar.gz looty-linux-x86_64 ../../../install.sh
+          cd ../..
+          cd looty-linux-arm64
+          tar czf ../../looty-linux-arm64.tar.gz looty-linux-arm64 ../../../install.sh
+          cd ../..
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            install.ps1
+            install.sh
+            looty-windows-x86_64.zip
+            looty-windows-arm64.zip
+            looty-macos-arm64.tar.gz
+            looty-macos-x86_64.tar.gz
+            looty-linux-arm64.tar.gz
+            looty-linux-x86_64.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,13 +1,13 @@
 # Binaries
 *.exe
-blip.exe
-blip.html
+looty.exe
+looty.html
 
 # Generated/embedded HTML (keep web/index.html source)
 embed/*.html
 cmd/blip/*.html
 internal/server/assets/*.html
-blip.html
+looty.html
 
 # Go
 *.exe
@@ -47,5 +47,10 @@ web/.vite/
 
 # OS
 Thumbs.db
+
+# Release files (generated during CI)
+looty-windows-*.zip
+looty-macos-*.tar.gz
+looty-linux-*.tar.gz
 
 private/

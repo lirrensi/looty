@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/user/blip/internal/clipboard"
-	"github.com/user/blip/internal/files"
+	"github.com/user/looty/internal/clipboard"
+	"github.com/user/looty/internal/files"
 )
 
 //go:embed assets/index.html
@@ -34,19 +34,34 @@ func Start(serveDir string, port int) error {
 
 	mux := http.NewServeMux()
 
+	// CORS middleware - wrap all handlers
+	withCORS := func(handler http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			handler(w, r)
+		}
+	}
+
 	// Serve embedded index.html at root
-	mux.HandleFunc("/", s.serveIndex)
+	mux.HandleFunc("/", withCORS(s.serveIndex))
 
 	// Health check for discovery
-	mux.HandleFunc("/ping", s.handlePing)
+	mux.HandleFunc("/ping", withCORS(s.handlePing))
 
 	// File API endpoints
-	mux.HandleFunc("/api/files", files.ListHandler(s.serveDir))
-	mux.HandleFunc("/api/download", files.DownloadHandler(s.serveDir))
-	mux.HandleFunc("/api/upload", files.UploadHandler(s.serveDir))
+	mux.HandleFunc("/api/files", withCORS(files.ListHandler(s.serveDir)))
+	mux.HandleFunc("/api/download", withCORS(files.DownloadHandler(s.serveDir)))
+	mux.HandleFunc("/api/upload", withCORS(files.UploadHandler(s.serveDir)))
 
 	// WebSocket endpoint
-	mux.HandleFunc("/ws", s.handleWebSocket)
+	mux.HandleFunc("/ws", withCORS(s.handleWebSocket))
 
 	addr := fmt.Sprintf(":%d", port)
 	return http.ListenAndServe(addr, mux)

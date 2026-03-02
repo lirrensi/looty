@@ -10,11 +10,38 @@ import (
 )
 
 type FileInfo struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	IsDir   bool   `json:"isDir"`
-	Size    int64  `json:"size"`
-	ModTime string `json:"modTime"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	IsDir    bool   `json:"isDir"`
+	Size     int64  `json:"size"`
+	ModTime  string `json:"modTime"`
+	IsBinary bool   `json:"isBinary"`
+}
+
+// isBinaryFile checks if a file is binary by reading the first 8KB and looking for null bytes
+func isBinaryFile(path string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	buf := make([]byte, 8192)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		return false
+	}
+	if n == 0 {
+		return false // empty file = not binary
+	}
+
+	// Check for null bytes - definitive sign of binary
+	for i := 0; i < n; i++ {
+		if buf[i] == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func ListHandler(serveDir string) http.HandlerFunc {
@@ -54,12 +81,18 @@ func ListHandler(serveDir string) http.HandlerFunc {
 				continue
 			}
 
+			isBinary := false
+			if !entry.IsDir() {
+				isBinary = isBinaryFile(filepath.Join(fullPath, entry.Name()))
+			}
+
 			files = append(files, FileInfo{
-				Name:    entry.Name(),
-				Path:    filepath.Join(relPath, entry.Name()),
-				IsDir:   entry.IsDir(),
-				Size:    info.Size(),
-				ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
+				Name:     entry.Name(),
+				Path:     filepath.Join(relPath, entry.Name()),
+				IsDir:    entry.IsDir(),
+				Size:     info.Size(),
+				ModTime:  info.ModTime().Format("2006-01-02 15:04:05"),
+				IsBinary: isBinary,
 			})
 		}
 

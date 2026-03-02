@@ -6,7 +6,7 @@ export function discovery() {
     
     logMsg(msg) {
       this.log.push(`[${new Date().toLocaleTimeString()}] ${msg}`)
-      console.log(`[Blip] ${msg}`)
+      console.log(`[LOOTY] ${msg}`)
     },
     
     async findServer() {

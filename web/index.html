@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blip</title>
+  <title>LOOTY</title>
 </head>
-<body class="bg-gray-900 text-gray-100 h-full flex flex-col" x-data="app()" x-init="init()">
+<body class="bg-purple-950 text-gray-100 h-full flex flex-col" x-data="app()" x-init="init()">
   
   <!-- Discovery overlay -->
   <div 
@@ -17,7 +17,7 @@
         <div>
           <div class="animate-spin text-4xl mb-4">⟳</div>
           <p class="text-xl">Searching for server...</p>
-          <p class="text-gray-400 mt-2">Make sure blip.exe is running on your computer</p>
+          <p class="text-gray-400 mt-2">Make sure looty.exe is running on your computer</p>
         </div>
       </template>
       
@@ -60,7 +60,7 @@
   
   <!-- Header -->
   <header class="bg-gray-800 px-4 py-3 flex items-center justify-between">
-    <h1 class="text-xl font-bold">Blip</h1>
+    <h1 class="text-xl font-bold">LOOTY</h1>
     <div class="flex items-center gap-2">
       <span x-show="connected" class="text-green-400">● Connected</span>
       <span x-show="!connected" class="text-yellow-400">● Searching...</span>
@@ -68,17 +68,52 @@
   </header>
   
   <!-- Main Content -->
-  <main class="flex-1 overflow-hidden flex flex-col" x-data="fileBrowser()" x-init="loadFiles()">
+  <main class="flex-1 overflow-hidden flex flex-col" x-data="fileBrowser()" x-init="init()">
     
-    <!-- Path breadcrumb -->
-    <div class="bg-gray-800 px-4 py-2 flex items-center gap-2 text-sm">
-      <button @click="navigateUp()" class="text-blue-400 hover:text-blue-300">..</button>
-      <span x-text="currentPath" class="text-gray-400"></span>
+    <!-- Breadcrumb navigation with Up button -->
+    <div class="bg-gray-800 px-4 py-2 flex items-center gap-2">
+      <!-- Up button - only show when not at root -->
+      <button 
+        x-show="currentPath !== '.'"
+        @click="navigateUp()"
+        class="text-gray-400 hover:text-white flex items-center gap-1 text-sm px-2 py-1 rounded hover:bg-gray-700"
+        title="Go up one level"
+      >
+        <span>↑</span>
+        <span>Up</span>
+      </button>
+      
+      <!-- Breadcrumbs -->
+      <div class="flex items-center gap-1 text-sm overflow-x-auto flex-1">
+        <template x-for="(crumb, i) in breadcrumbPath" :key="crumb.path">
+          <div class="flex items-center">
+            <template x-if="i > 0">
+              <span class="text-gray-500 mx-1">/</span>
+            </template>
+            <button 
+              @click="navigateTo(crumb.path)"
+              class="text-blue-400 hover:text-blue-300 whitespace-nowrap"
+              :class="i === breadcrumbPath.length - 1 ? 'text-white font-medium' : ''"
+              x-text="crumb.name"
+            ></button>
+          </div>
+        </template>
+      </div>
+    </div>
+    
+    <!-- Sort bar -->
+    <div class="bg-gray-800 px-4 py-2 flex items-center justify-between text-xs border-t border-gray-700">
+      <button @click="toggleSort()" class="text-blue-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-700">
+        <span>Sort:</span>
+        <span x-text="sortBy === 'name' ? 'A-Z' : 'Date'"></span>
+        <span x-text="sortAsc ? '↑' : '↓'"></span>
+      </button>
+      <span class="text-gray-500" x-text="files.length + ' items'"></span>
     </div>
     
     <!-- File list -->
     <div class="flex-1 overflow-y-auto">
-      <template x-for="file in files" :key="file.path">
+      <template x-for="file in sortedFiles" :key="file.path">
         <div 
           @click="selectFile(file)"
           class="px-4 py-3 flex items-center gap-3 hover:bg-gray-800 cursor-pointer border-b border-gray-700"
@@ -86,38 +121,96 @@
         >
           <span x-show="file.isDir" class="text-2xl">📁</span>
           <span x-show="!file.isDir" class="text-2xl">📄</span>
-          <div class="flex-1">
-            <div x-text="file.name" class="font-medium"></div>
-            <div x-show="!file.isDir" x-text="formatSize(file.size)" class="text-xs text-gray-500"></div>
+          <div class="flex-1 min-w-0">
+            <div x-text="file.name" class="font-medium truncate"></div>
+            <div class="text-xs text-gray-500 flex gap-2">
+              <span x-show="!file.isDir" x-text="formatSize(file.size)"></span>
+              <span x-show="!file.isDir && file.modified">•</span>
+              <span x-show="file.modified" x-text="formatDate(file.modified)"></span>
+            </div>
           </div>
         </div>
+      </template>
+      <template x-if="!files.length && !loading">
+        <div class="text-center text-gray-500 py-8">No files</div>
+      </template>
+      <template x-if="loading">
+        <div class="text-center text-gray-500 py-8">Loading...</div>
       </template>
     </div>
     
     <!-- Preview panel -->
     <div x-show="preview" class="bg-gray-800 border-t border-gray-700 p-4 max-h-64 overflow-y-auto">
       <template x-if="preview?.type === 'text'">
-        <pre x-text="preview.content" class="text-sm whitespace-pre-wrap"></pre>
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs text-gray-400" x-text="selectedFile?.name"></span>
+            <button @click="downloadFile($event)" class="text-xs text-blue-400 hover:text-blue-300">Download</button>
+          </div>
+          <pre x-text="preview.content" class="text-sm whitespace-pre-wrap font-mono"></pre>
+        </div>
       </template>
       <template x-if="preview?.type === 'image'">
-        <img :src="preview.url" class="max-w-full max-h-48 mx-auto">
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs text-gray-400" x-text="selectedFile?.name"></span>
+            <button @click="downloadFile($event)" class="text-xs text-blue-400 hover:text-blue-300">Download</button>
+          </div>
+          <img :src="preview.url" class="max-w-full max-h-48 mx-auto">
+        </div>
       </template>
       <template x-if="preview?.type === 'binary'">
         <div class="text-center text-gray-400">
-          <p>Binary file</p>
-          <button @click="downloadFile()" class="mt-2 bg-blue-600 px-4 py-2 rounded">Download</button>
+          <p x-text="preview.reason || 'Binary file - cannot preview'"></p>
+          <button @click="downloadFile($event)" class="mt-2 bg-blue-600 px-4 py-2 rounded text-sm">Download</button>
+        </div>
+      </template>
+      <template x-if="preview?.type === 'error'">
+        <div class="text-center text-red-400">
+          <p x-text="preview.message"></p>
         </div>
       </template>
     </div>
     
+    <!-- Upload progress -->
+    <div x-show="uploadProgress !== null" class="bg-gray-800 border-t border-gray-700 px-4 py-2">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-gray-400">Uploading...</span>
+        <div class="flex-1 bg-gray-700 rounded-full h-2">
+          <div class="bg-blue-600 h-2 rounded-full transition-all" :style="'width: ' + uploadProgress + '%'"></div>
+        </div>
+        <span class="text-gray-400" x-text="uploadProgress + '%'"></span>
+      </div>
+    </div>
+    
+    <!-- Upload success -->
+    <div x-show="uploadSuccess" class="bg-green-900 border-t border-green-700 px-4 py-2 text-center text-green-400 text-sm">
+      ✓ File uploaded
+    </div>
+    
+    <!-- Download progress -->
+    <div x-show="downloadProgress !== null" class="bg-gray-800 border-t border-gray-700 px-4 py-2">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-gray-400">Downloading...</span>
+        <div class="flex-1 bg-gray-700 rounded-full h-2">
+          <div class="bg-green-600 h-2 rounded-full transition-all" :style="'width: ' + downloadProgress + '%'"></div>
+        </div>
+        <span class="text-gray-400" x-text="downloadProgress + '%'"></span>
+      </div>
+    </div>
+    
     <!-- Bottom actions -->
-    <div class="bg-gray-800 p-4 flex gap-2">
-      <label class="flex-1 bg-blue-600 text-center py-3 rounded cursor-pointer">
-        Upload
+    <div class="bg-gray-800 p-3 flex gap-2 items-center">
+      <label class="bg-blue-600 hover:bg-blue-700 text-center px-4 py-2 rounded cursor-pointer text-sm transition-colors">
+        ↑ Upload
         <input type="file" @change="uploadFile($event)" class="hidden">
       </label>
-      <button @click="$dispatch('toggle-clipboard')" class="px-4 py-3 bg-gray-700 rounded">
-        Clipboard
+      <button @click="$dispatch('toggle-clipboard')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
+        📋 Clipboard
+      </button>
+      <div class="flex-1"></div>
+      <button @click="loadFiles(currentPath)" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors" title="Refresh">
+        ⟳
       </button>
     </div>
   </main>
@@ -136,18 +229,27 @@
     </header>
     
     <div class="flex-1 overflow-y-auto p-4">
+      <!-- Connection status -->
+      <div x-show="!wsConnected" class="mb-4 p-3 bg-yellow-900 border border-yellow-700 rounded text-yellow-400 text-sm">
+        <span x-text="wsError || 'Connecting...'"></span>
+      </div>
+      
       <!-- Text input -->
       <textarea 
         x-model="text" 
         placeholder="Type or paste text..."
         class="w-full h-32 bg-gray-800 rounded p-3 text-white resize-none"
+        :disabled="!wsConnected"
       ></textarea>
       
       <button 
         @click="send()"
-        class="w-full mt-3 bg-blue-600 py-3 rounded font-medium"
+        class="w-full mt-3 py-3 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        :class="sendSuccess ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'"
+        :disabled="!wsConnected"
       >
-        Send to Desktop
+        <span x-show="!sendSuccess">Send to Desktop</span>
+        <span x-show="sendSuccess">✓ Sent!</span>
       </button>
       
       <!-- History -->
@@ -158,8 +260,15 @@
           <div class="flex justify-between items-center mt-2">
             <span x-text="item.time" class="text-xs text-gray-500"></span>
             <div class="flex gap-2">
-              <button @click="useHistoryItem(item)" class="text-xs text-blue-400">Use</button>
-              <button @click="copyToClipboard(item.text)" class="text-xs text-green-400">Copy</button>
+              <button @click="useHistoryItem(item)" class="text-xs text-blue-400 hover:text-blue-300">Use</button>
+              <button 
+                @click="copyToClipboard(item.text)" 
+                class="text-xs transition-colors"
+                :class="copySuccess ? 'text-green-400' : 'text-green-400 hover:text-green-300'"
+              >
+                <span x-show="!copySuccess">Copy</span>
+                <span x-show="copySuccess">✓</span>
+              </button>
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [viteSingleFile()],
   build: {
     outDir: '../cmd/blip',
-    emptyOutDir: false,
+    emptyOutDir: true,
     assetsInlineLimit: 100000000,
   },
   server: {
