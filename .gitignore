@@ -1,0 +1,43 @@
+# Binaries
+*.exe
+blip.exe
+blip.html
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/vendor/
+
+# Build output
+/dist/
+/build/
+*.out
+
+# Node
+node_modules/
+pnpm-debug.log*
+.pnpm-store/
+
+# Web build
+web/dist/
+web/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db
