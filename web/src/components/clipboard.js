@@ -1,19 +1,21 @@
-import { wsUrl } from '../utils.js'
+import { apiUrl, wsUrl } from '../utils.js'
 
 export function clipboardPanel() {
   return {
-    text: '',
+    content: '',
     history: [],
     ws: null,
     copySuccess: false,
     sendSuccess: false,
     wsConnected: false,
     wsError: '',
-    
+    initialized: false,
+    syncTimeout: null,
+
     init() {
-      // Wait for server discovery before connecting WebSocket
       const checkReady = () => {
         if (window.API_BASE) {
+          this.loadScratchpad()
           this.connectWebSocket()
         } else {
           setTimeout(checkReady, 100)
@@ -21,24 +23,39 @@ export function clipboardPanel() {
       }
       checkReady()
     },
-    
+
+    async loadScratchpad() {
+      try {
+        const res = await fetch(apiUrl('/api/scratchpad'))
+        const data = await res.json()
+        this.content = data.content || ''
+        this.addToHistory(data.content || '')
+      } catch (err) {
+        console.error('Failed to load scratchpad:', err)
+      }
+    },
+
     connectWebSocket() {
       const wsUrlStr = wsUrl()
       this.wsError = ''
-      
+
       try {
         this.ws = new WebSocket(wsUrlStr)
-        
+
         this.ws.onopen = () => {
           console.log('WebSocket connected')
           this.wsConnected = true
           this.wsError = ''
         }
-        
+
         this.ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data)
-            if (msg.type === 'clipboard') {
+            if (msg.type === 'scratchpad') {
+              // Update from another client
+              this.content = msg.data
+              this.addToHistory(msg.data)
+            } else if (msg.type === 'clipboard') {
               this.addToHistory(msg.data)
             } else if (msg.type === 'refresh') {
               this.$dispatch('files-refresh')
@@ -47,64 +64,64 @@ export function clipboardPanel() {
             console.error('Failed to parse message:', err)
           }
         }
-        
+
         this.ws.onclose = () => {
           console.log('WebSocket disconnected, reconnecting...')
           this.wsConnected = false
           setTimeout(() => this.connectWebSocket(), 3000)
         }
-        
+
         this.ws.onerror = (err) => {
           console.error('WebSocket error:', err)
           this.wsConnected = false
-          this.wsError = 'Connection failed - clipboard sync unavailable'
+          this.wsError = 'Connection failed - scratchpad sync unavailable'
         }
       } catch (err) {
         console.error('Failed to create WebSocket:', err)
         this.wsError = 'Cannot connect to server'
       }
     },
-    
-    send() {
-      if (!this.text.trim()) return
-      
-      const msg = JSON.stringify({
-        type: 'clipboard',
-        data: this.text,
-      })
-      
-      this.ws.send(msg)
-      this.addToHistory(this.text)
-      this.text = ''
-      this.sendSuccess = true
-      setTimeout(() => {
-        this.sendSuccess = false
-      }, 1500)
+
+    onInput() {
+      // Debounce sync to avoid spamming
+      if (this.syncTimeout) clearTimeout(this.syncTimeout)
+      this.syncTimeout = setTimeout(() => {
+        this.syncToServer()
+      }, 300)
     },
-    
+
+    async syncToServer() {
+      try {
+        await fetch(apiUrl('/api/scratchpad'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: this.content })
+        })
+      } catch (err) {
+        console.error('Failed to sync scratchpad:', err)
+      }
+    },
+
     addToHistory(text) {
-      // Add to beginning
+      // Skip if text is empty or same as last item
+      if (!text || text === this.history[0]?.text) return
+
       this.history.unshift({
         text: text,
         time: new Date().toLocaleTimeString(),
       })
-      
-      // Keep only last 10
-      if (this.history.length > 10) {
+      if (this.history.length > 50) {
         this.history.pop()
       }
     },
-    
+
     async copyToClipboard(text) {
       try {
         await navigator.clipboard.writeText(text)
         this.copySuccess = true
-        setTimeout(() => {
-          this.copySuccess = false
-        }, 1500)
+        setTimeout(() => { this.copySuccess = false }, 1500)
       } catch (err) {
         console.error('Failed to copy:', err)
-        // Fallback for older browsers
         const textarea = document.createElement('textarea')
         textarea.value = text
         document.body.appendChild(textarea)
@@ -112,14 +129,27 @@ export function clipboardPanel() {
         document.execCommand('copy')
         document.body.removeChild(textarea)
         this.copySuccess = true
-        setTimeout(() => {
-          this.copySuccess = false
-        }, 1500)
+        setTimeout(() => { this.copySuccess = false }, 1500)
       }
     },
-    
+
     useHistoryItem(item) {
-      this.text = item.text
+      this.content = item.text
+      this.syncToServer()
+    },
+
+    closeScratchpad() {
+      // Access root app's showClipboard
+      const root = this.$data.$data  // Get root app data
+      if (root) {
+        root.showClipboard = false
+      } else {
+        // Fallback: try to find from window
+        const app = document.querySelector('[x-data="app()"]')
+        if (app && app.__x) {
+          app.__x.showClipboard = false
+        }
+      }
     },
   }
 }

@@ -2,10 +2,12 @@ package server
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/user/looty/internal/clipboard"
 	"github.com/user/looty/internal/files"
@@ -30,7 +32,23 @@ func GetHTML() ([]byte, error) {
 	return content, nil
 }
 
-var hub *Hub
+var (
+	hub          *Hub
+	scratchpadMu sync.RWMutex
+	scratchpad   string
+)
+
+func GetScratchpad() string {
+	scratchpadMu.RLock()
+	defer scratchpadMu.RUnlock()
+	return scratchpad
+}
+
+func SetScratchpad(content string) {
+	scratchpadMu.Lock()
+	scratchpad = content
+	scratchpadMu.Unlock()
+}
 
 type Server struct {
 	serveDir string
@@ -80,6 +98,18 @@ func Start(serveDir string, port int) error {
 	// WebSocket endpoint
 	mux.HandleFunc("/ws", withCORS(s.handleWebSocket))
 
+	// Scratchpad API endpoints
+	mux.HandleFunc("/api/scratchpad", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			s.handleGetScratchpad(w, r)
+		case "POST":
+			s.handleSetScratchpad(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))
+
 	addr := fmt.Sprintf(":%d", port)
 	return http.ListenAndServe(addr, mux)
 }
@@ -105,6 +135,29 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("pong"))
 }
 
+func (s *Server) handleGetScratchpad(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"content": GetScratchpad()})
+}
+
+func (s *Server) handleSetScratchpad(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	SetScratchpad(body.Content)
+
+	// Broadcast to all connected clients
+	msg := clipboard.NewScratchpadMessage(body.Content)
+	hub.broadcast <- msg
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -126,7 +179,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if message.Type == clipboard.TypeClipboard {
+		if message.Type == clipboard.TypeClipboard || message.Type == clipboard.TypeScratchpad {
 			// Broadcast to all other clients
 			hub.broadcast <- msg
 		}

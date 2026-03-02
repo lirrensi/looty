@@ -11,6 +11,9 @@ importers:
       alpinejs:
         specifier: ^3.15.8
         version: 3.15.8
+      lucide:
+        specifier: ^0.576.0
+        version: 0.576.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.58.2
@@ -614,6 +617,9 @@ packages:
     resolution: {integrity: sha512-l51N2r93WmGUye3WuFoN5k10zyvrVs0qfKBhyC5ogUQ6Ew6JUSswh78mbSO+IU3nTWsyOArqPCcShdQSadghBQ==}
     engines: {node: '>= 12.0.0'}
 
+  lucide@0.576.0:
+    resolution: {integrity: sha512-R8OBTUFiPq4BZ7LxRNZECDvBa/8MKgTqcF5N1iifqyPSGD7lT8ymV9103di01b+6xjhPsqlh7hlSxqNcJEK1eg==}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -1130,6 +1136,8 @@ snapshots:
       lightningcss-linux-x64-musl: 1.31.1
       lightningcss-win32-arm64-msvc: 1.31.1
       lightningcss-win32-x64-msvc: 1.31.1
+
+  lucide@0.576.0: {}
 
   magic-string@0.30.21:
     dependencies:

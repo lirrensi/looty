@@ -14,7 +14,7 @@ type FileInfo struct {
 	Path     string `json:"path"`
 	IsDir    bool   `json:"isDir"`
 	Size     int64  `json:"size"`
-	ModTime  string `json:"modTime"`
+	Modified string `json:"modified"`
 	IsBinary bool   `json:"isBinary"`
 }
 
@@ -91,7 +91,7 @@ func ListHandler(serveDir string) http.HandlerFunc {
 				Path:     filepath.Join(relPath, entry.Name()),
 				IsDir:    entry.IsDir(),
 				Size:     info.Size(),
-				ModTime:  info.ModTime().Format("2006-01-02 15:04:05"),
+				Modified: info.ModTime().Format("2006-01-02 15:04:05"),
 				IsBinary: isBinary,
 			})
 		}

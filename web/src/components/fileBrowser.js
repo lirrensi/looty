@@ -7,12 +7,33 @@ export function fileBrowser() {
     selectedFile: null,
     preview: null,
     loading: false,
+    refreshing: false,
     uploadProgress: null,
     uploadSuccess: false,
     downloadProgress: null,
-    sortBy: 'name', // 'name' or 'date'
-    sortAsc: true,
+    sortModes: ['name-asc', 'name-desc', 'date-desc', 'date-asc'],
+    sortModeIndex: 0,
     initialized: false,
+
+    toggleScratchpad() {
+      // Access root app's showClipboard
+      const app = this.$data
+      console.log('toggleScratchpad called, app.showClipboard before:', app.showClipboard)
+      app.showClipboard = !app.showClipboard
+      console.log('toggleScratchpad called, app.showClipboard after:', app.showClipboard)
+    },
+    
+    get sortMode() {
+      return this.sortModes[this.sortModeIndex]
+    },
+    
+    get sortBy() {
+      return this.sortMode.split('-')[0]
+    },
+    
+    get sortAsc() {
+      return this.sortMode.split('-')[1] === 'asc'
+    },
     
     init() {
       // Wait for server discovery before loading files
@@ -29,7 +50,8 @@ export function fileBrowser() {
     
     get breadcrumbPath() {
       if (this.currentPath === '.') return [{ name: 'Home', path: '.' }]
-      const parts = this.currentPath.split('/')
+      // Split on both / and \ to handle Windows and Unix paths
+      const parts = this.currentPath.split(/[/\\]/).filter(p => p)
       const crumbs = [{ name: 'Home', path: '.' }]
       let accum = ''
       for (const part of parts) {
@@ -61,6 +83,7 @@ export function fileBrowser() {
     
     async loadFiles(path = '.') {
       this.loading = true
+      this.refreshing = true
       this.currentPath = path
       this.selectedFile = null
       this.preview = null
@@ -72,8 +95,10 @@ export function fileBrowser() {
       } catch (err) {
         console.error('Failed to load files:', err)
         this.files = []
+      } finally {
+        this.loading = false
+        this.refreshing = false
       }
-      this.loading = false
     },
     
     navigateTo(path) {
@@ -210,14 +235,12 @@ export function fileBrowser() {
       event.target.value = ''
     },
     
-    toggleSort() {
-      if (this.sortBy === 'name') {
-        this.sortBy = 'date'
-        this.sortAsc = false
-      } else {
-        this.sortBy = 'name'
-        this.sortAsc = true
-      }
+    cycleSort() {
+      this.sortModeIndex = (this.sortModeIndex + 1) % this.sortModes.length
+    },
+    
+    setSort(mode) {
+      this.sortModeIndex = this.sortModes.indexOf(mode)
     },
     
     formatSize(bytes) {

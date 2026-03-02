@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LOOTY</title>
 </head>
-<body class="bg-purple-950 text-gray-100 h-full flex flex-col" x-data="app()" x-init="init()">
+<body class="bg-gray-950 text-gray-100 h-full flex flex-col" x-data="app()" x-init="init()">
   
   <!-- Discovery overlay -->
   <div 
@@ -76,38 +76,52 @@
       <button 
         x-show="currentPath !== '.'"
         @click="navigateUp()"
-        class="text-gray-400 hover:text-white flex items-center gap-1 text-sm px-2 py-1 rounded hover:bg-gray-700"
+        class="bg-gray-700 hover:bg-gray-600 text-white flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg transition-all"
         title="Go up one level"
       >
-        <span>↑</span>
+        <span x-html="icon('arrowUp', 16)"></span>
         <span>Up</span>
       </button>
       
-      <!-- Breadcrumbs -->
-      <div class="flex items-center gap-1 text-sm overflow-x-auto flex-1">
+      <!-- Breadcrumbs: each folder is its own separate button -->
+      <div class="flex flex-wrap gap-2 text-sm flex-1">
         <template x-for="(crumb, i) in breadcrumbPath" :key="crumb.path">
-          <div class="flex items-center">
-            <template x-if="i > 0">
-              <span class="text-gray-500 mx-1">/</span>
-            </template>
-            <button 
-              @click="navigateTo(crumb.path)"
-              class="text-blue-400 hover:text-blue-300 whitespace-nowrap"
-              :class="i === breadcrumbPath.length - 1 ? 'text-white font-medium' : ''"
-              x-text="crumb.name"
-            ></button>
-          </div>
+          <button
+            @click="navigateTo(crumb.path)"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            :class="i === breadcrumbPath.length - 1
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-700 text-gray-200 hover:bg-gray-600'"
+            x-text="crumb.name"
+          ></button>
         </template>
       </div>
     </div>
     
     <!-- Sort bar -->
     <div class="bg-gray-800 px-4 py-2 flex items-center justify-between text-xs border-t border-gray-700">
-      <button @click="toggleSort()" class="text-blue-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-700">
-        <span>Sort:</span>
-        <span x-text="sortBy === 'name' ? 'A-Z' : 'Date'"></span>
-        <span x-text="sortAsc ? '↑' : '↓'"></span>
-      </button>
+      <div class="flex gap-1">
+        <template x-for="mode in sortModes" :key="mode">
+          <button 
+            @click="setSort(mode)"
+            class="px-2 py-1 rounded transition-all flex items-center gap-1"
+            :class="sortMode === mode ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'"
+          >
+            <template x-if="mode === 'name-asc'">
+              <span>A→Z</span>
+            </template>
+            <template x-if="mode === 'name-desc'">
+              <span>Z→A</span>
+            </template>
+            <template x-if="mode === 'date-desc'">
+              <span>Newest</span>
+            </template>
+            <template x-if="mode === 'date-asc'">
+              <span>Oldest</span>
+            </template>
+          </button>
+        </template>
+      </div>
       <span class="text-gray-500" x-text="files.length + ' items'"></span>
     </div>
     
@@ -119,8 +133,7 @@
           class="px-4 py-3 flex items-center gap-3 hover:bg-gray-800 cursor-pointer border-b border-gray-700"
           :class="{ 'bg-gray-800': selectedFile?.path === file.path }"
         >
-          <span x-show="file.isDir" class="text-2xl">📁</span>
-          <span x-show="!file.isDir" class="text-2xl">📄</span>
+          <span x-html="fileIcon(file.name, file.isDir, 24)"></span>
           <div class="flex-1 min-w-0">
             <div x-text="file.name" class="font-medium truncate"></div>
             <div class="text-xs text-gray-500 flex gap-2">
@@ -201,81 +214,84 @@
     
     <!-- Bottom actions -->
     <div class="bg-gray-800 p-3 flex gap-2 items-center">
-      <label class="bg-blue-600 hover:bg-blue-700 text-center px-4 py-2 rounded cursor-pointer text-sm transition-colors">
-        ↑ Upload
+      <label class="bg-blue-600 hover:bg-blue-700 text-center px-4 py-2 rounded-lg cursor-pointer text-sm transition-colors flex items-center gap-1">
+        <span x-html="icon('upload', 16)"></span>
+        Upload
         <input type="file" @change="uploadFile($event)" class="hidden">
       </label>
-      <button @click="$dispatch('toggle-clipboard')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
-        📋 Clipboard
+      <button @click="toggleScratchpad()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors flex items-center gap-1">
+        <span x-html="icon('clipboard', 16)"></span>
+        Scratchpad
       </button>
       <div class="flex-1"></div>
-      <button @click="loadFiles(currentPath)" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors" title="Refresh">
-        ⟳
-      </button>
+      <button 
+        @click="loadFiles(currentPath)" 
+        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-all disabled:opacity-50"
+        :class="refreshing ? 'animate-spin' : ''"
+        :disabled="refreshing"
+        title="Refresh"
+        x-html="icon('refresh', 18)"
+      ></button>
     </div>
   </main>
   
-  <!-- Clipboard Panel -->
-  <div 
-    x-show="showClipboard" 
+  <!-- Scratchpad Panel -->
+  <div
+    x-show="$data.showClipboard"
     x-transition
-    class="fixed inset-0 bg-gray-900 flex flex-col z-50"
+    class="fixed inset-0 bg-gray-900 z-50"
     x-data="clipboardPanel()"
     x-init="init()"
   >
     <header class="bg-gray-800 px-4 py-3 flex items-center justify-between">
-      <h2 class="text-xl font-bold">Clipboard</h2>
-      <button @click="$dispatch('toggle-clipboard')" class="text-2xl">&times;</button>
+      <h2 class="text-xl font-bold flex items-center gap-2">
+        <span x-html="icon('clipboard', 20)"></span>
+        Scratchpad
+      </h2>
+      <button @click="$data.showClipboard = false" class="text-2xl text-gray-400 hover:text-white" x-html="icon('close', 24)"></button>
     </header>
-    
-    <div class="flex-1 overflow-y-auto p-4">
+
+    <div class="h-[calc(100%-60px)] flex">
       <!-- Connection status -->
-      <div x-show="!wsConnected" class="mb-4 p-3 bg-yellow-900 border border-yellow-700 rounded text-yellow-400 text-sm">
+      <div x-show="!wsConnected" class="px-4 py-2 bg-yellow-900/50 text-yellow-400 text-sm">
         <span x-text="wsError || 'Connecting...'"></span>
       </div>
-      
-      <!-- Text input -->
-      <textarea 
-        x-model="text" 
-        placeholder="Type or paste text..."
-        class="w-full h-32 bg-gray-800 rounded p-3 text-white resize-none"
-        :disabled="!wsConnected"
-      ></textarea>
-      
-      <button 
-        @click="send()"
-        class="w-full mt-3 py-3 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        :class="sendSuccess ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'"
-        :disabled="!wsConnected"
-      >
-        <span x-show="!sendSuccess">Send to Desktop</span>
-        <span x-show="sendSuccess">✓ Sent!</span>
-      </button>
-      
-      <!-- History -->
-      <h3 class="mt-6 mb-2 text-gray-400 text-sm">History</h3>
-      <template x-for="(item, i) in history" :key="i">
-        <div class="bg-gray-800 rounded p-3 mb-2">
-          <div x-text="item.text" class="text-sm truncate"></div>
-          <div class="flex justify-between items-center mt-2">
-            <span x-text="item.time" class="text-xs text-gray-500"></span>
-            <div class="flex gap-2">
-              <button @click="useHistoryItem(item)" class="text-xs text-blue-400 hover:text-blue-300">Use</button>
-              <button 
-                @click="copyToClipboard(item.text)" 
-                class="text-xs transition-colors"
-                :class="copySuccess ? 'text-green-400' : 'text-green-400 hover:text-green-300'"
-              >
-                <span x-show="!copySuccess">Copy</span>
-                <span x-show="copySuccess">✓</span>
-              </button>
-            </div>
-          </div>
+
+      <!-- Main textarea area -->
+      <div class="flex-1 p-4">
+        <textarea
+          x-model="content"
+          @input="onInput()"
+          placeholder="Type anything here... it syncs to all connected devices in real-time"
+          class="w-full h-full bg-gray-800 rounded-lg p-4 text-white resize-none font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          :disabled="!wsConnected"
+        ></textarea>
+      </div>
+
+      <!-- History sidebar -->
+      <div class="w-48 border-l border-gray-700 bg-gray-900 overflow-y-auto">
+        <div class="p-2 border-b border-gray-700">
+          <span class="text-xs font-medium text-gray-400">History</span>
         </div>
-      </template>
+        <template x-for="(item, i) in history" :key="i">
+          <div
+            @click="useHistoryItem(item)"
+            class="p-3 cursor-pointer hover:bg-gray-800 transition-colors border-b border-gray-700"
+          >
+            <div class="text-xs text-gray-400 mb-1" x-text="item.time"></div>
+            <div class="text-sm text-gray-200 line-clamp-3" x-text="item.text"></div>
+          </div>
+        </template>
+        <template x-if="!history.length">
+          <div class="p-4 text-xs text-gray-500 text-center">No history yet</div>
+        </template>
+      </div>
     </div>
   </div>
   
-  <script type="module" src="/src/main.js"></script>
+  <script type="module">
+    import '/src/icons.js'
+    import '/src/main.js'
+  </script>
 </body>
 </html>
