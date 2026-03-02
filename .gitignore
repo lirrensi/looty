@@ -47,3 +47,5 @@ web/.vite/
 
 # OS
 Thumbs.db
+
+private/

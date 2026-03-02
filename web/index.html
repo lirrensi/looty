@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blip</title>
+</head>
+<body class="bg-gray-900 text-gray-100 h-full flex flex-col" x-data="app()" x-init="init()">
+  
+  <!-- Discovery overlay -->
+  <div 
+    x-show="status === 'searching' || status === 'failed'" 
+    class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50"
+  >
+    <div class="text-center p-8">
+      <template x-if="status === 'searching'">
+        <div>
+          <div class="animate-spin text-4xl mb-4">⟳</div>
+          <p class="text-xl">Searching for server...</p>
+          <p class="text-gray-400 mt-2">Make sure blip.exe is running on your computer</p>
+        </div>
+      </template>
+      
+      <template x-if="status === 'failed'">
+        <div>
+          <div class="text-4xl mb-4">⚠️</div>
+          <p class="text-xl mb-4">Server not found</p>
+          <div class="bg-gray-800 rounded p-4">
+            <p class="text-sm text-gray-400 mb-2">Enter server IP manually:</p>
+            <div class="flex gap-2">
+              <input 
+                type="text" 
+                x-model="manualIP" 
+                placeholder="192.168.1.42"
+                class="flex-1 bg-gray-700 rounded px-3 py-2 text-white"
+              >
+              <button 
+                @click="connectManual()"
+                class="bg-blue-600 px-4 py-2 rounded"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+  
+  <!-- Header -->
+  <header class="bg-gray-800 px-4 py-3 flex items-center justify-between">
+    <h1 class="text-xl font-bold">Blip</h1>
+    <div class="flex items-center gap-2">
+      <span x-show="connected" class="text-green-400">● Connected</span>
+      <span x-show="!connected" class="text-yellow-400">● Searching...</span>
+    </div>
+  </header>
+  
+  <!-- Main Content -->
+  <main class="flex-1 overflow-hidden flex flex-col" x-data="fileBrowser()" x-init="loadFiles()">
+    
+    <!-- Path breadcrumb -->
+    <div class="bg-gray-800 px-4 py-2 flex items-center gap-2 text-sm">
+      <button @click="navigateUp()" class="text-blue-400 hover:text-blue-300">..</button>
+      <span x-text="currentPath" class="text-gray-400"></span>
+    </div>
+    
+    <!-- File list -->
+    <div class="flex-1 overflow-y-auto">
+      <template x-for="file in files" :key="file.path">
+        <div 
+          @click="selectFile(file)"
+          class="px-4 py-3 flex items-center gap-3 hover:bg-gray-800 cursor-pointer border-b border-gray-700"
+          :class="{ 'bg-gray-800': selectedFile?.path === file.path }"
+        >
+          <span x-show="file.isDir" class="text-2xl">📁</span>
+          <span x-show="!file.isDir" class="text-2xl">📄</span>
+          <div class="flex-1">
+            <div x-text="file.name" class="font-medium"></div>
+            <div x-show="!file.isDir" x-text="formatSize(file.size)" class="text-xs text-gray-500"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    
+    <!-- Preview panel -->
+    <div x-show="preview" class="bg-gray-800 border-t border-gray-700 p-4 max-h-64 overflow-y-auto">
+      <template x-if="preview?.type === 'text'">
+        <pre x-text="preview.content" class="text-sm whitespace-pre-wrap"></pre>
+      </template>
+      <template x-if="preview?.type === 'image'">
+        <img :src="preview.url" class="max-w-full max-h-48 mx-auto">
+      </template>
+      <template x-if="preview?.type === 'binary'">
+        <div class="text-center text-gray-400">
+          <p>Binary file</p>
+          <button @click="downloadFile()" class="mt-2 bg-blue-600 px-4 py-2 rounded">Download</button>
+        </div>
+      </template>
+    </div>
+    
+    <!-- Bottom actions -->
+    <div class="bg-gray-800 p-4 flex gap-2">
+      <label class="flex-1 bg-blue-600 text-center py-3 rounded cursor-pointer">
+        Upload
+        <input type="file" @change="uploadFile($event)" class="hidden">
+      </label>
+      <button @click="$dispatch('toggle-clipboard')" class="px-4 py-3 bg-gray-700 rounded">
+        Clipboard
+      </button>
+    </div>
+  </main>
+  
+  <!-- Clipboard Panel -->
+  <div 
+    x-show="showClipboard" 
+    x-transition
+    class="fixed inset-0 bg-gray-900 flex flex-col z-50"
+    x-data="clipboardPanel()"
+    x-init="init()"
+  >
+    <header class="bg-gray-800 px-4 py-3 flex items-center justify-between">
+      <h2 class="text-xl font-bold">Clipboard</h2>
+      <button @click="$dispatch('toggle-clipboard')" class="text-2xl">&times;</button>
+    </header>
+    
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- Text input -->
+      <textarea 
+        x-model="text" 
+        placeholder="Type or paste text..."
+        class="w-full h-32 bg-gray-800 rounded p-3 text-white resize-none"
+      ></textarea>
+      
+      <button 
+        @click="send()"
+        class="w-full mt-3 bg-blue-600 py-3 rounded font-medium"
+      >
+        Send to Desktop
+      </button>
+      
+      <!-- History -->
+      <h3 class="mt-6 mb-2 text-gray-400 text-sm">History</h3>
+      <template x-for="(item, i) in history" :key="i">
+        <div class="bg-gray-800 rounded p-3 mb-2">
+          <div x-text="item.text" class="text-sm truncate"></div>
+          <div class="flex justify-between items-center mt-2">
+            <span x-text="item.time" class="text-xs text-gray-500"></span>
+            <div class="flex gap-2">
+              <button @click="useHistoryItem(item)" class="text-xs text-blue-400">Use</button>
+              <button @click="copyToClipboard(item.text)" class="text-xs text-green-400">Copy</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+  
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
