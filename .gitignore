@@ -3,6 +3,12 @@
 blip.exe
 blip.html
 
+# Generated/embedded HTML (keep web/index.html source)
+embed/*.html
+cmd/blip/*.html
+internal/server/assets/*.html
+blip.html
+
 # Go
 *.exe
 *.exe~
