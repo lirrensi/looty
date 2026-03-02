@@ -1,39 +1,18 @@
-.PHONY: run build dev install clean nuke web
-
-# Default target - NUKE EVERYTHING, rebuild fresh, AND run
-all: nuke web go run
+.PHONY: build run dev install clean
 
 # Build everything and run
-build: nuke web go
+all: build run
 
-# Just rebuild web and go (no nuke)
-fresh: web go
-
-# NUCLEAR OPTION - delete ALL build artifacts
-nuke:
-	@echo "=== NUKING ALL BUILD ARTIFACTS ==="
-	rm -f looty.exe
-	rm -f looty.html
-	rm -rf web/dist
-	rm -rf web/.vite
-	rm -rf cmd/blip/.vite
-	@echo "=== CLEAN COMPLETE ==="
-
-# Build frontend HTML (Vite -> cmd/blip/)
-web:
-	@echo "=== BUILDING WEB FRONTEND ==="
+# Build frontend + Go binary
+build:
+	@echo "=== BUILDING ==="
 	cd web && npm run build
-	@echo "=== WEB BUILD COMPLETE ==="
-
-# Build Go binary (embeds fresh index.html)
-go:
-	@echo "=== BUILDING GO BINARY ==="
-	go build -o looty.exe ./cmd/blip
-	@echo "=== GO BUILD COMPLETE ==="
+	go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(shell date /t && time /t)" -o looty.exe ./cmd/blip
+	@echo "=== DONE ==="
 
 # Run the server
 run:
-	@echo "=== STARTING SERVER ==="
+	@echo "=== STARTING ==="
 	.\looty.exe
 
 # Run web dev server
@@ -44,9 +23,7 @@ dev:
 install:
 	cd web && npm install
 
-# Full setup: install deps and build
-setup: install build
-
-# Run both backend and frontend (requires two terminals)
-start: run
-	@echo "Server running at http://localhost:41111"
+# Clean build artifacts
+clean:
+	rm -f looty.exe looty.html
+	rm -rf web/dist

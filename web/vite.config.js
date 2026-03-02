@@ -4,7 +4,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig({
   plugins: [viteSingleFile()],
   build: {
-    outDir: '../cmd/blip',
+    outDir: '../internal/server/assets',
     emptyOutDir: true,
     assetsInlineLimit: 100000000,
   },

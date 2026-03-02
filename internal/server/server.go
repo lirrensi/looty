@@ -5,13 +5,30 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/user/looty/internal/clipboard"
 	"github.com/user/looty/internal/files"
 )
 
+// BuildTime is set via ldflags at build time
+var BuildTime string
+
 //go:embed assets/index.html
 var staticFiles embed.FS
+
+// GetHTML returns the embedded index.html content with build time injected
+func GetHTML() ([]byte, error) {
+	content, err := staticFiles.ReadFile("assets/index.html")
+	if err != nil {
+		return nil, err
+	}
+	// Inject build time
+	if BuildTime != "" {
+		return []byte(strings.Replace(string(content), "__BUILD_TIME__", BuildTime, 1)), nil
+	}
+	return content, nil
+}
 
 var hub *Hub
 
@@ -73,7 +90,7 @@ func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, err := staticFiles.ReadFile("assets/index.html")
+	content, err := GetHTML()
 	if err != nil {
 		http.Error(w, "Failed to load index", http.StatusInternalServerError)
 		return
