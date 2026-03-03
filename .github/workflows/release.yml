@@ -11,16 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install pnpm
-        run: npm install -g pnpm
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         working-directory: web
 
       - name: Build frontend
@@ -35,37 +39,31 @@ jobs:
 
   build:
     needs: frontend
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - os: windows-latest
-            suffix: windows-amd64
+          - suffix: windows-amd64
             ext: .exe
             goos: windows
             goarch: amd64
-          - os: windows-latest
-            suffix: windows-arm64
+          - suffix: windows-arm64
             ext: .exe
             goos: windows
             goarch: arm64
-          - os: macos-latest
-            suffix: macos-arm64
+          - suffix: macos-arm64
             ext: ''
             goos: darwin
             goarch: arm64
-          - os: macos-latest
-            suffix: macos-amd64
+          - suffix: macos-amd64
             ext: ''
             goos: darwin
             goarch: amd64
-          - os: ubuntu-latest
-            suffix: linux-amd64
+          - suffix: linux-amd64
             ext: ''
             goos: linux
             goarch: amd64
-          - os: ubuntu-latest
-            suffix: linux-arm64
+          - suffix: linux-arm64
             ext: ''
             goos: linux
             goarch: arm64
@@ -81,17 +79,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: .
-
-      - name: Prepare embed
-        run: |
-          mkdir -p internal/server/assets
-          cp index.html internal/server/assets/index.html
+          path: web/internal/server/assets/
 
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: go build -ldflags="-s -w -X github.com/lirrensi/looty/internal/server.Version=${{ github.ref_name }}" -o looty-${{ matrix.suffix }}${{ matrix.ext }} ./cmd/blip
 
       - name: Upload binary artifact
@@ -114,19 +108,18 @@ jobs:
       - name: Create install script
         run: |
           cat > install.sh << 'SCRIPT'
-#!/bin/sh
-set -e
-ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
-OS="$(uname | sed -e 's/Darwin/macos/' -e 's/Linux/linux/')"
-BIN="looty-${OS}-${ARCH}"
-if [ "$OS" = "windows" ]; then BIN="${BIN}.exe"; fi
-curl -L -o looty "https://github.com/lirrensi/looty/releases/latest/download/${BIN}"
-chmod +x looty
-mkdir -p ~/.local/bin
-mv looty ~/.local/bin/
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-echo "Installed! Run 'looty' (restart terminal)"
-SCRIPT
+          #!/bin/sh
+          set -e
+          ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
+          OS="$(uname | sed -e 's/Darwin/macos/' -e 's/Linux/linux/')"
+          BIN="looty-${OS}-${ARCH}"
+          curl -L -o looty "https://github.com/lirrensi/looty/releases/latest/download/${BIN}"
+          chmod +x looty
+          mkdir -p ~/.local/bin
+          mv looty ~/.local/bin/
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+          echo "Installed! Run 'looty' (restart terminal)"
+          SCRIPT
           chmod +x install.sh
 
       - name: Release
