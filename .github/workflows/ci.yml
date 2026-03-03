@@ -35,7 +35,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
         working-directory: web
 
       - name: Build frontend

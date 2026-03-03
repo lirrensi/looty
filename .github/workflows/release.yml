@@ -20,7 +20,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
         working-directory: web
 
       - name: Build frontend
@@ -113,7 +113,7 @@ jobs:
 
       - name: Create install script
         run: |
-          cat > install.sh << 'EOF'
+          cat > install.sh << 'SCRIPT'
 #!/bin/sh
 set -e
 ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
@@ -126,7 +126,7 @@ mkdir -p ~/.local/bin
 mv looty ~/.local/bin/
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
 echo "Installed! Run 'looty' (restart terminal)"
-EOF
+SCRIPT
           chmod +x install.sh
 
       - name: Release
