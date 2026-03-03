@@ -29,16 +29,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: ./web
+        working-directory: web
 
       - name: Build frontend
         run: pnpm build
-        working-directory: ./web
+        working-directory: web
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
@@ -87,4 +89,9 @@ jobs:
         run: go build -ldflags="-s -w" -o looty ./cmd/blip
 
       - name: Verify binary
-        run: ./looty --version || looty.exe --version || true
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ./looty.exe --version || true
+          else
+            ./looty --version || true
+          fi

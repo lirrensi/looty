@@ -14,16 +14,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: ./web
+        working-directory: web
 
       - name: Build frontend
         run: pnpm build
-        working-directory: ./web
+        working-directory: web
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
@@ -109,23 +111,22 @@ jobs:
         with:
           path: dist
 
-      - name: Create installers
+      - name: Create install script
         run: |
           cat > install.sh << 'EOF'
 #!/bin/sh
 set -e
-VERSION="${GITHUB_REF_NAME:-latest}"
 ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
-OS="$(uname | sed -e 's/Darwin/macOS/' -e 's/Linux/linux/')"
+OS="$(uname | sed -e 's/Darwin/macos/' -e 's/Linux/linux/')"
 BIN="looty-${OS}-${ARCH}"
-curl -L -o looty "https://github.com/lirrensi/looty/releases/latest/download/looty-${OS}-${ARCH}"\$( [ "\$OS" = "windows" ] && echo '.exe' )
+if [ "$OS" = "windows" ]; then BIN="${BIN}.exe"; fi
+curl -L -o looty "https://github.com/lirrensi/looty/releases/latest/download/${BIN}"
 chmod +x looty
 mkdir -p ~/.local/bin
 mv looty ~/.local/bin/
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
 echo "Installed! Run 'looty' (restart terminal)"
 EOF
-          chmod +x install.sh
           chmod +x install.sh
 
       - name: Release
