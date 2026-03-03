@@ -24,12 +24,13 @@ A portable file sync & clipboard sharing tool between desktop and mobile on your
 ## 🚀 Quick Install
 
 ```bash
-curl -sL https://github.com/lirrensi/looty/releases/latest/download/install.sh | sh
+# macOS / Linux
+curl -sL https://raw.githubusercontent.com/lirrensi/looty/main/install.sh | sh
 ```
 
-Or on Windows:
 ```powershell
-irm https://github.com/lirrensi/looty/releases/latest/download/install.ps1 | iex
+# Windows
+irm https://raw.githubusercontent.com/lirrensi/looty/main/install.ps1 | iex
 ```
 
 ---
