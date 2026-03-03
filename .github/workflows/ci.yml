@@ -49,6 +49,11 @@ jobs:
         working-directory: web
         run: pnpm build
 
+      - name: Copy built files for Go embed
+        run: |
+          cp internal/server/assets/index.html embed/index.html
+          cp internal/server/assets/index.html cmd/blip/index.html
+
   # Test Go build for all platforms
   build:
     needs: frontend
