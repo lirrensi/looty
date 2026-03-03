@@ -10,9 +10,48 @@ A portable file sync & clipboard sharing tool between desktop and mobile on your
 
 ---
 
+## 📱 How It Works
+
+**Zero Bullshit — 3 Steps:**
+
+1. **Run Looty** in your terminal
+2. **Scan the QR code** with your phone
+3. **Open mobile, grab files** — done!
+
+```
+┌─────────────────────────────────────────────┐
+│  🐱 Looty v0.1.0                            │
+│                                             │
+│  📱 Scan to connect:                        │
+│                                             │
+│       ████████████████                      │
+│       ██          ██                        │
+│       ██  ██  ██  ██                        │
+│       ██    ██      ██                      │
+│       ██  ██  ██  ██                        │
+│       ██          ██                        │
+│       ████████████████                      │
+│                                             │
+│  Or open: http://192.168.1.X:41111          │
+│                                             │
+│  🎯 Ready to sync!                          │
+└─────────────────────────────────────────────┘
+```
+
+### Screenshots
+
+| Desktop (Terminal) | Mobile (Files) | Mobile (Scratchpad) |
+|--------------------|----------------|---------------------|
+| ![CLI](assets/cli.png) | ![Mobile Files](assets/mobile_file.jpg) | ![Mobile Pad](assets/mobile_pad.jpg) |
+
+**That's it.** Run Looty → Scan QR → Use your phone as a wireless drive.
+
+---
+
 ## ✨ Features
 
 - 📱 **Zero-Config**: Auto-discovery on local network
+- 📷 **QR Connect**: Scan QR code with your phone to connect instantly
 - 🔄 **File Sync**: Drag & drop files between your desktop and phone
 - 📋 **Clipboard Sync**: Copy text/pixels from desktop to mobile
 - 💾 **Scratchpad**: Quick note-taking between devices
@@ -31,22 +70,6 @@ curl -sL https://raw.githubusercontent.com/lirrensi/looty/main/install.sh | sh
 ```powershell
 # Windows
 irm https://raw.githubusercontent.com/lirrensi/looty/main/install.ps1 | iex
-```
-
----
-
-## 📱 How It Works
-
-1. **Run Looty** on your desktop in any folder
-2. **Copy `looty.html`** from the looty.exe directory to your phone
-3. **Open in browser** - your phone will auto-discover your desktop
-4. **Done!** File sync and clipboard sharing work instantly
-
-### Desktop URLs
-After running, Looty will show you these URLs:
-```
-http://192.168.1.X:41111
-http://localhost:41111
 ```
 
 ---
