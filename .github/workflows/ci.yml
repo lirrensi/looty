@@ -63,7 +63,9 @@ jobs:
         run: pnpm build
 
       - name: Copy built files for Go embed
+        working-directory: .
         run: |
+          ls -la internal/server/assets/
           cp internal/server/assets/index.html embed/index.html
           cp internal/server/assets/index.html cmd/blip/index.html
 
