@@ -10,7 +10,7 @@ all: build run
 # Build frontend + Go binary
 build:
 	@echo "=== BUILDING v$(VERSION) ==="
-	cd web && npm run build
+	cd web && pnpm build
 	go build -ldflags "-X github.com/lirrensi/looty/internal/server.Version=$(VERSION) -X github.com/lirrensi/looty/internal/server.BuildTime=$(DATE)" -o looty ./cmd/blip
 	@echo "=== DONE ==="
 
@@ -21,11 +21,11 @@ run:
 
 # Run web dev server
 dev:
-	cd web && npm run dev
+	cd web && pnpm dev
 
 # Install web dependencies
 install:
-	cd web && npm install
+	cd web && pnpm install
 
 # Clean build artifacts
 clean:

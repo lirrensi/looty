@@ -1,18 +1,10 @@
 name: Release
 
-# Only trigger on version tags (with path filtering)
+# Only trigger on version tags
 on:
   push:
     tags:
       - 'v*'
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'web/**'
-      - 'embed/**'
-      - 'Makefile'
-      - '.github/workflows/release.yml'
 
 jobs:
   # Build frontend once (shared across all platforms)
@@ -53,19 +45,11 @@ jobs:
         working-directory: web
         run: pnpm build
 
-      - name: Copy built files for Go embed
-        working-directory: .
-        run: |
-          cp internal/server/assets/index.html embed/index.html
-          cp internal/server/assets/index.html cmd/blip/index.html
-
       - name: Upload frontend
         uses: actions/upload-artifact@v4
         with:
           name: frontend
-          path: |
-            cmd/blip/index.html
-            embed/index.html
+          path: web/internal/server/assets/index.html
 
   # Build for all platforms
   build:
@@ -118,6 +102,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend
+          path: .
+
+      - name: Copy frontend to embed directory
+        run: |
+          mkdir -p internal/server/assets
+          cp index.html internal/server/assets/index.html
 
       - name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
         env:
@@ -267,7 +257,7 @@ jobs:
           echo "SUCCESS! Installed to: $INSTALL_DIR"
           echo "Run 'looty' in any folder!"
           
-          rm -rf "$TEMP_DIR"
+          rm -rf $TEMP_DIR
           SCRIPT
 
       - name: Create zip/tar archives
