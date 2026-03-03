@@ -54,6 +54,14 @@ jobs:
           cp internal/server/assets/index.html embed/index.html
           cp internal/server/assets/index.html cmd/blip/index.html
 
+      - name: Upload frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend
+          path: |
+            cmd/blip/index.html
+            embed/index.html
+
   # Test Go build for all platforms
   build:
     needs: frontend
