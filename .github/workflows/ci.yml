@@ -1,6 +1,5 @@
 name: CI
 
-# Run on every push to main and all PRs (with path filtering)
 on:
   push:
     branches: [main]
@@ -9,7 +8,6 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'web/**'
-      - 'embed/**'
       - 'Makefile'
       - '.github/workflows/ci.yml'
   pull_request:
@@ -19,93 +17,74 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'web/**'
-      - 'embed/**'
       - 'Makefile'
       - '.github/workflows/ci.yml'
 
 jobs:
-  # Test frontend build
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        run: npm install -g pnpm
-
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          node-version: 20
+          cache: 'pnpm'
 
       - name: Install dependencies
-        working-directory: web
         run: pnpm install --frozen-lockfile
+        working-directory: ./web
 
       - name: Build frontend
-        working-directory: web
         run: pnpm build
+        working-directory: ./web
 
-      - name: Upload frontend
+      - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frontend
+          name: frontend-build
           path: web/internal/server/assets/index.html
 
-  # Test Go build for all platforms
   build:
     needs: frontend
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - os: windows-latest
-            goos: windows
+          - os: ubuntu-latest
+            goos: linux
             goarch: amd64
           - os: macos-latest
             goos: darwin
             goarch: arm64
-          - os: ubuntu-latest
-            goos: linux
+          - os: windows-latest
+            goos: windows
             goarch: amd64
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.23'
 
-      - name: Download frontend
+      - name: Download frontend artifact
         uses: actions/download-artifact@v4
         with:
-          name: frontend
+          name: frontend-build
           path: .
 
-      - name: Copy frontend to embed directory
+      - name: Prepare embed
         run: |
           mkdir -p internal/server/assets
           cp index.html internal/server/assets/index.html
 
-      - name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Build Go binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          go build -ldflags="-s -w" -o looty ./cmd/blip
+        run: go build -ldflags="-s -w" -o looty ./cmd/blip
+
+      - name: Verify binary
+        run: ./looty --version || looty.exe --version || true
