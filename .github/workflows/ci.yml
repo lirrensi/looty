@@ -1,21 +1,27 @@
 name: CI
 
-# Run on every push to main and all PRs
+# Run on every push to main and all PRs (with path filtering)
 on:
   push:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'web/**'
+      - 'embed/**'
+      - 'Makefile'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
-
-# Skip if only non-code files changed
-paths:
-  - '**.go'
-  - 'go.mod'
-  - 'go.sum'
-  - 'web/**'
-  - 'embed/**'
-  - 'Makefile'
-  - '.github/workflows/ci.yml'
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'web/**'
+      - 'embed/**'
+      - 'Makefile'
+      - '.github/workflows/ci.yml'
 
 jobs:
   # Test frontend build

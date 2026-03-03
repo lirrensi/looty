@@ -1,20 +1,18 @@
 name: Release
 
-# Only trigger on version tags
+# Only trigger on version tags (with path filtering)
 on:
   push:
     tags:
       - 'v*'
-
-# Skip if only non-code files changed
-paths:
-  - '**.go'
-  - 'go.mod'
-  - 'go.sum'
-  - 'web/**'
-  - 'embed/**'
-  - 'Makefile'
-  - '.github/workflows/release.yml'
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'web/**'
+      - 'embed/**'
+      - 'Makefile'
+      - '.github/workflows/release.yml'
 
 jobs:
   # Build frontend once (shared across all platforms)
