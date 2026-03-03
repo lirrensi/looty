@@ -13,6 +13,9 @@ import (
 	"github.com/lirrensi/looty/internal/files"
 )
 
+// Version is set via ldflags at build time (e.g., -X ...Version=1.0.0)
+var Version string
+
 // BuildTime is set via ldflags at build time
 var BuildTime string
 
