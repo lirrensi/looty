@@ -159,6 +159,19 @@ Client send → readPump → Parse → Broadcast hub → writePump → All clien
 **Key Functions:**
 - `StartWatcher(dir)` - Initialize fsnotify watcher
 
+#### 2.4 mDNS Server (`mdns.go`)
+
+**Responsibilities:**
+- Announce service as `looty.local` via multicast DNS
+- Enable zero-config discovery for browsers
+
+**Key Functions:**
+- `StartMDNS(port)` - Register `_http._tcp` service on `.local` domain
+- Uses `github.com/grandcat/zeroconf` library
+
+**Dependencies:**
+- `github.com/grandcat/zeroconf`
+
 ---
 
 ### 3. File Operations (`internal/files/`)
@@ -261,22 +274,28 @@ Client send → readPump → Parse → Broadcast hub → writePump → All clien
 
 **Discovery Strategies (in order of priority):**
 
-1. **Current Host** - If running from server (file:// or same host)
-   - Checks `window.location.hostname:41111`
-   - Fastest option for local testing
+1. **Cached IP** - Check localStorage for previously-found server
+   - Instant reconnection for returning users
+   - Falls through if cached IP fails
 
-2. **Localhost** - Always check first
-   - `localhost:41111`
-   - Instant for local development
+2. **mDNS/.local hostname** - Zero-config discovery
+   - Tries `http://looty.local:41111/ping`
+   - Works on most home networks without configuration
+   - Browsers resolve `.local` via OS mDNS resolver
 
-3. **Subnet Scan** - Fallback for network discovery
-   - Detects subnet by pinging common subnets (192.168.1.x, 192.168.0.x, 10.0.0.x, 192.168.2.x)
-   - Pings IPs 1-254
-   - Aborts on first success
+3. **Smart Parallel Scan** - Tiered subnet probing
+   - Tries common subnets: 192.168.0.x, 192.168.1.x, 10.0.0.x, 192.168.2.x
+   - **Tier 1**: First 32 IPs of each subnet in parallel (covers 90%+ of DHCP assignments)
+   - **Tier 2**: If not found, expands to full 254 IPs per subnet
+   - 500ms timeout per request
+
+4. **Manual Entry** - User-provided IP as final fallback
 
 **Key Functions:**
 - `findServer()` - Orchestrates discovery process
-- `detectSubnet()` - Tries common subnets to detect network
+- `tryCachedIP()` - Check localStorage for previous connection
+- `tryLocalHostname()` - Attempt `looty.local` resolution
+- `probeSubnets()` - Parallel subnet scanning with tiered approach
 - `pingServer(ip)` - Tests connectivity with 500ms timeout
 - `logMsg(msg)` - Adds to debug log
 
@@ -358,9 +377,10 @@ WebSocket receives message → onmessage() → update content + history
 ### Discovery Flow
 ```
 App starts → discoverServer() → findServer()
-  → Try current host → pingServer() → success?
-  → Try localhost → pingServer() → success?
-  → Detect subnet → scan 1-254 IPs → pingServer() → success?
+  → Try cached IP (localStorage) → pingServer() → success?
+  → Try looty.local:41111 → pingServer() → success?
+  → Probe common subnets (first 32 IPs each, parallel) → pingServer() → success?
+  → Expand to full subnet scan (254 IPs per subnet, parallel) → success?
   → Manual entry or fail
 ```
 
@@ -554,3 +574,37 @@ go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(date)" -
 - File versioning
 - Sync conflicts resolution
 - Cross-platform mobile apps (native)
+
+---
+
+## Installers
+
+### `install.sh` (Unix/macOS)
+
+**Responsibilities:**
+- Download appropriate binary for OS/architecture
+- Install binary to `~/.local/bin/looty`
+- Copy `looty.html` to `~/looty/looty.html` for easy phone transfer
+
+**Output Locations:**
+- Binary: `~/.local/bin/looty` (added to PATH)
+- HTML: `~/looty/looty.html` (home folder, easy to find)
+
+### `install.ps1` (Windows)
+
+**Responsibilities:**
+- Download appropriate binary for architecture
+- Install binary to `%LOCALAPPDATA%\looty\looty.exe`
+- Copy `looty.html` to `%USERPROFILE%\looty\looty.html` for easy phone transfer
+- Add binary location to user PATH
+
+**Output Locations:**
+- Binary: `%LOCALAPPDATA%\looty\looty.exe` (added to PATH)
+- HTML: `%USERPROFILE%\looty\looty.html` (home folder, easy to find)
+
+### Dual-copy Rationale
+
+Both installers place `looty.html` in the home folder root because:
+- Users need to find it easily to copy to their phone
+- AppData/hidden folders are hard to navigate
+- Home folder is the first place users look

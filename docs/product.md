@@ -64,11 +64,12 @@ No configuration. No accounts. No cloud. Just works.
 - Debounced sync to avoid spamming
 
 ### Discovery
-- **Fast path**: Checks current host first (instant for local testing)
-- **Second path**: Checks localhost
-- **Fallback path**: Auto-detects subnet and scans 1-254 IPs
-- **Debug log** shows all discovery attempts
-- **Manual IP entry** fallback if auto-discovery fails
+- **Cache first**: Checks localStorage for previously-found server IP (instant reconnect)
+- **mDNS magic**: Server announces as `looty.local:41111` — browsers resolve automatically
+- **Smart parallel scan**: Probes common subnets (192.168.0.x, 192.168.1.x, 10.0.0.x) with first 32 IPs each in parallel
+- **Fallback expansion**: If not found, expands to full 254 IPs per subnet
+- **Manual IP entry**: Final fallback if auto-discovery fails
+- **Debug log**: Shows all discovery attempts
 - **Success indicators**: Green dot for connected, yellow for searching
 
 ### Technical Features
@@ -203,6 +204,8 @@ looty.exe          # ~15MB, self-contained Go binary
   └── extracts: looty.html (on first run, for phone)
 
 looty.html         # Copied to phone once, works forever
+                   # Also saved to ~/looty/ (Unix) or %USERPROFILE%\looty\ (Windows)
+                   # for easy discovery after install
 ```
 
 ---

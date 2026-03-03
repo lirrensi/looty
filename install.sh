@@ -9,4 +9,12 @@ curl -sL "https://github.com/lirrensi/looty/releases/latest/download/looty-${OS}
 mkdir -p ~/.local/bin
 mv looty ~/.local/bin/
 
-echo "Installed looty to ~/.local/bin - restart your terminal or run: export PATH=\"$HOME/.local/bin:\$PATH\""
+# Create ~/looty directory for easy access to looty.html
+mkdir -p ~/looty
+
+echo "Installed looty to ~/.local/bin"
+echo "Run 'looty' to start - it will extract looty.html to:"
+echo "  1. The current directory"
+echo "  2. ~/looty/ (for easy phone transfer)"
+echo ""
+echo "Restart your terminal or run: export PATH=\"$HOME/.local/bin:\$PATH\""

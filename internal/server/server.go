@@ -65,6 +65,11 @@ func Start(serveDir string, port int) error {
 	// Start file watcher
 	StartWatcher(serveDir)
 
+	// Start mDNS announcement
+	if err := StartMDNS(port); err != nil {
+		log.Printf("Warning: mDNS failed: %v", err)
+	}
+
 	s := &Server{
 		serveDir: serveDir,
 		port:     port,
