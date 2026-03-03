@@ -21,29 +21,15 @@ A portable file sync & clipboard sharing tool between desktop and mobile on your
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Install
 
-### Windows
-```powershell
-# Download the latest release
-$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") { "amd64" } else { "arm64" }
-curl -sL "https://github.com/lirrensi/looty/releases/latest/download/looty-windows-${arch}.zip" -o looty.zip
-Expand-Archive looty.zip -Force
-Remove-Item looty.zip
-
-# Run looty in any folder
-looty-windows-${arch}.exe
+```bash
+curl -sL https://github.com/lirrensi/looty/releases/latest/download/install.sh | sh
 ```
 
-### macOS / Linux
-```bash
-# Download the latest release
-ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
-OS="$(uname | tr '[:upper:]' '[:lower:]' | sed -e 's/darwin/macos/')"
-curl -sL "https://github.com/lirrensi/looty/releases/latest/download/looty-${OS}-${ARCH}.tar.gz" | tar xz
-
-# Run looty in any folder
-./looty
+Or on Windows:
+```powershell
+irm https://github.com/lirrensi/looty/releases/latest/download/install.ps1 | iex
 ```
 
 ---

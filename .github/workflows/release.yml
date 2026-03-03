@@ -130,23 +130,38 @@ jobs:
         id: version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
-      - name: Create install script
+      - name: Create install scripts
         run: |
+          # Unix install script (sh/bash)
           cat > install.sh << 'SCRIPT'
           #!/bin/sh
           set -e
           ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
           OS="$(uname | sed -e 's/Darwin/macos/' -e 's/Linux/linux/')"
-          EXT=""
-          if [ "$OS" = "windows" ]; then EXT=".zip"; else EXT=".tar.gz"; fi
-          curl -sL "https://github.com/lirrensi/looty/releases/latest/download/looty-${OS}-${ARCH}${EXT}" | tar xz
+          curl -sL "https://github.com/lirrensi/looty/releases/latest/download/looty-${OS}-${ARCH}.tar.gz" | tar xz
           chmod +x looty
           mkdir -p ~/.local/bin
           mv looty ~/.local/bin/
-          echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-          echo "Installed! Run 'looty' (restart terminal)"
+          echo "Installed looty to ~/.local/bin - restart your terminal or run: export PATH=\"$HOME/.local/bin:\$PATH\""
           SCRIPT
           chmod +x install.sh
+
+          # Windows install script (PowerShell)
+          cat > install.ps1 << 'SCRIPT'
+          $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") { "amd64" } else { "arm64" }
+          $url = "https://github.com/lirrensi/looty/releases/latest/download/looty-windows-${arch}.zip"
+          $zip = "$env:TEMP\looty.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -Force -DestinationPath "$env:TEMP\looty"
+          $exe = Get-Item "$env:TEMP\looty\looty-windows-${arch}.exe"
+          Move-Item $exe "$env:LOCALAPPDATA\looty\looty.exe" -Force
+          $path = [Environment]::GetEnvironmentVariable("Path", "User")
+          if ($path -notlike "*looty*") {
+              [Environment]::SetEnvironmentVariable("Path", "$path;$env:LOCALAPPDATA\looty", "User")
+          }
+          Remove-Item $zip,"$env:TEMP\looty" -Recurse -Force -EA SilentlyContinue
+          Write-Host "Installed looty to $env:LOCALAPPDATA\looty - restart your terminal"
+          SCRIPT
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -154,6 +169,7 @@ jobs:
           files: |
             dist/**/*
             install.sh
+            install.ps1
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: Looty ${{ steps.version.outputs.VERSION }}
         env:
