@@ -98,6 +98,12 @@ curl -sL https://raw.githubusercontent.com/lirrensi/looty/main/install.sh | sh
 irm https://raw.githubusercontent.com/lirrensi/looty/main/install.ps1 | iex
 ```
 
+Or download manually from [the latest release](https://github.com/lirrensi/looty/releases/latest).
+
+**Binary names inside archives:**
+- All platforms extract to a single `looty` binary (or `looty.exe` on Windows)
+- The archive name includes the platform (e.g., `looty-linux-amd64.tar.gz`), but the binary inside is always just `looty`
+
 ---
 
 ## 📦 Building from Source
@@ -155,6 +161,34 @@ looty/
 └── assets/
     └── le_cat.jpg      # Looty mascot 🐱
 ```
+
+---
+
+## 🚀 Releasing
+
+Releases are fully automated via GitHub Actions. When a tag is pushed, the workflow automatically:
+1. Builds the frontend
+2. Compiles binaries for all platforms (Windows, macOS, Linux — both amd64 and arm64)
+3. Creates platform-specific archives
+4. Publishes a GitHub Release with all assets
+
+### How to Release
+
+```bash
+# 1. Update VERSION file if needed
+# 2. Commit everything
+git add -A
+git commit -m "Release: description"
+git push origin main
+
+# 3. Create and push a tag (triggers the release workflow)
+git tag v1.4.0 -m "Looty v1.4.0"
+git push origin v1.4.0
+```
+
+The release will appear at `https://github.com/lirrensi/looty/releases` within 3-5 minutes.
+
+**Important:** Tags must use the `v` prefix (e.g., `v1.4.0`). The workflow auto-detects the tag from the git ref.
 
 ---
 

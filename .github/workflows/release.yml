@@ -1,3 +1,23 @@
+# Release Workflow
+# 
+# ⚠️  CRITICAL: This workflow MUST create a GitHub Release when triggered.
+# If you modify this file, ensure the release step still works.
+#
+# HOW IT WORKS:
+# 1. Tag pushed (e.g., v1.4.0) → triggers this workflow
+# 2. Workflow builds binaries for all platforms
+# 3. softprops/action-gh-release creates the GitHub Release
+#
+# ⚠️  NEVER set `tag_name` manually in the release step!
+# The action auto-detects it from the git ref (e.g., refs/tags/v1.4.0).
+# Setting tag_name="1.4.0" when the git tag is "v1.4.0" will SILENTLY FAIL.
+#
+# TROUBLESHOOTING:
+# - If workflow succeeds but no release appears, check the release step logs
+# - Common cause: tag_name mismatch between git tag and workflow config
+#
+# For full release instructions, see AGENTS.md and README.md
+
 name: Release
 
 on:
@@ -130,6 +150,9 @@ jobs:
         id: version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
+      # ⚠️  DO NOT ADD `tag_name` HERE! The action auto-detects from the git ref.
+      # Adding tag_name="1.4.0" when git tag is "v1.4.0" will cause silent failure.
+      # See the comment at the top of this file for details.
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
