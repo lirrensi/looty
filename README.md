@@ -22,6 +22,21 @@ A portable file sync & clipboard sharing tool for desktop, mobile, and remote se
 
 Looty can also run on a remote server, VM, or internal machine. When it binds to a non-loopback address, it automatically enables TLS with a self-signed certificate and prints a fingerprint for verification.
 
+### ⚙️ Run Modes & Commands
+
+Looty now has a few startup shapes:
+
+- **Interactive / foreground**: `looty`
+  - Stays attached to your terminal and prints the normal startup view
+- **Background / daemon**: `looty -daemon`
+  - Keeps running after launch and preserves startup details
+- **Programmatic / machine-readable**: `looty -daemon -json`
+  - Emits startup details as JSON for scripts, agents, or other processes
+- **Save startup details to a file**: `looty -daemon -json-file startup.json`
+  - Writes the same startup record for later pickup
+
+For remote or non-loopback hosts, Looty auto-enables TLS and prints the certificate fingerprint/friend code so you can verify the server before connecting.
+
 ```
 ┌─────────────────────────────────────────────┐
 │  🐱 Looty v0.1.0                            │
