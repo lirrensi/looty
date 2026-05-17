@@ -96,15 +96,15 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
-        run: go build -ldflags="-s -w -X github.com/lirrensi/looty/internal/server.Version=${{ steps.version.outputs.VERSION }}" -o looty-${{ matrix.suffix }}${{ matrix.ext }} ./cmd/blip
+        run: go build -ldflags="-s -w -X github.com/lirrensi/looty/internal/server.Version=${{ steps.version.outputs.VERSION }}" -o looty${{ matrix.ext }} ./cmd/blip
 
       - name: Create archive
         shell: bash
         run: |
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip looty-${{ matrix.suffix }}.zip looty-${{ matrix.suffix }}${{ matrix.ext }}
+            zip looty-${{ matrix.suffix }}.zip looty${{ matrix.ext }}
           else
-            tar -czf looty-${{ matrix.suffix }}.tar.gz looty-${{ matrix.suffix }}
+            tar -czf looty-${{ matrix.suffix }}.tar.gz looty
           fi
 
       - name: Upload binary artifact
