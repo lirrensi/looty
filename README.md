@@ -1,6 +1,6 @@
 # Looty 🐱
 
-A portable file sync & clipboard sharing tool between desktop and mobile on your local network. Zero config, auto-discovery, single executable.
+A portable file sync & clipboard sharing tool for desktop, mobile, and remote servers. Zero config, auto-discovery, single executable.
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -17,6 +17,10 @@ A portable file sync & clipboard sharing tool between desktop and mobile on your
 1. **Run Looty** in your terminal
 2. **Scan the QR code** with your phone
 3. **Open mobile, grab files** — done!
+
+### 🌍 Remote Server Mode
+
+Looty can also run on a remote server, VM, or internal machine. When it binds to a non-loopback address, it automatically enables TLS with a self-signed certificate and prints a fingerprint for verification.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -55,7 +59,8 @@ A portable file sync & clipboard sharing tool between desktop and mobile on your
 - 🔄 **File Sync**: Drag & drop files between your desktop and phone
 - 📋 **Clipboard Sync**: Copy text/pixels from desktop to mobile
 - 💾 **Scratchpad**: Quick note-taking between devices
-- 🌐 **Local Only**: No internet required, completely private
+- 🌐 **Local-First**: No internet required for localhost; remote servers use auto-TLS with self-signed certs
+- 🔒 **Remote-Ready**: Works on non-loopback hosts with fingerprint verification
 - 🚀 **Portable**: Single executable, runs anywhere
 
 ---

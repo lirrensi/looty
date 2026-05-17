@@ -37,6 +37,16 @@ No configuration. No accounts. No cloud. Just works.
 5. User browses files, uploads, downloads, uses clipboard
 ```
 
+### Run Modes
+
+Looty supports three user-visible ways to run the same server:
+
+1. **Foreground mode** — run in a terminal, see the access URL, QR code, and any TLS trust details, then stop serving when the process exits.
+2. **Background mode** — start the same folder server as a long-running process without holding the terminal open, while still capturing the startup details needed to connect.
+3. **Agent-managed mode** — start Looty in the background on behalf of a user, but return the same startup details programmatically so another tool or agent can relay them back to the user.
+
+In all modes, the served resource is still "this folder for as long as this process lives". The difference is how the process is attached and how startup information is delivered.
+
 ---
 
 ## Features
@@ -90,6 +100,14 @@ No configuration. No accounts. No cloud. Just works.
   - Available IP addresses
   - Access URLs (http://IP:41111)
   - Instructions for copying looty.html to phone
+  - QR code in foreground mode
+  - TLS fingerprint and friend code when self-signed TLS is active
+
+### Background Startup Artifact
+- Background-capable runs must still produce a retrievable startup record
+- That record must include the connection URL and any trust material needed to connect safely
+- In self-signed TLS mode, the startup record must include the certificate fingerprint and friend code
+- The startup record is intended for users, service managers, and agents that need fire-and-forget startup without losing connection details
 
 ### Mobile (looty.html)
 - **Dark theme** optimized for mobile
@@ -232,12 +250,21 @@ looty.html         # Copied to phone once, works forever
 | Custom certificate | `looty -cert cert.pem -key key.pem` | Uses your own TLS certificate |
 | Force TLS on localhost | `looty -tls -host 127.0.0.1` | Auto-TLS even on loopback |
 
+### Process Modes
+
+| Scenario | Expected behavior |
+|---|---|
+| Interactive terminal use | Looty prints human-friendly startup details and stays attached to the terminal |
+| Persistent local serving | Looty can be started in a background/daemon style while keeping startup details available after launch |
+| Agent/service launch | Looty can expose startup details in a machine-readable form so another process can return them to the user |
+
 ### Security Considerations
 - On untrusted networks, always use TLS mode and verify the fingerprint
 - Don't expose `-no-tls` mode to public internet
 - Self-signed certificates are short-lived (24 hours) and generated per run
 - Regularly update executable to get security patches
 - Firewall rules can restrict access to specific devices
+- Background or daemon launch must not suppress or discard the TLS trust details needed for safe first connection
 
 ---
 
@@ -350,6 +377,9 @@ A: Yes, if you can reach the host IP. Run `looty` (auto-TLS), share the `https:/
 
 **Q: Is my data secure?**
 A: By default on non-loopback addresses, Looty uses auto-generated TLS with certificate fingerprint verification. Compare the fingerprint shown in your terminal with what your browser displays to confirm it's your server. For trusted LAN only, you can use `-no-tls`.
+
+**Q: Can I run Looty in the background or under systemd?**
+A: Yes — the intended behavior is that Looty supports persistent serving without holding the terminal open, while still producing a startup record with the URL and, when relevant, the TLS fingerprint and friend code.
 
 **Q: Can multiple phones connect?**
 A: Yes, multiple devices can connect simultaneously.

@@ -82,7 +82,9 @@ Looty is a client-server application with a Go backend serving a local network a
 - Parse CLI flags (`-host`, `-port`, `-tls`, `-no-tls`, `-cert`, `-key`)
 - Determine TLS mode based on bind address and flags
 - Auto-generate self-signed certificate when needed (via `internal/certgen`)
-- Print access URLs, QR code, certificate fingerprint, and friend code to console
+- Build startup metadata before serving begins
+- Print access URLs, QR code, certificate fingerprint, and friend code to console in foreground mode
+- Emit or persist machine-readable startup metadata in background-capable modes
 - Get executable path for extracting looty.html
 - Call `server.Start(cfg)` to begin serving
 
@@ -90,7 +92,7 @@ Looty is a client-server application with a Go backend serving a local network a
 - `getLocalIPs()` - Scans network interfaces for local IPs
 - `getPrimaryIP()` - Returns IP of interface with default gateway
 - `isLoopback(host)` / `isAllInterfaces(host)` - Bind address classification
-- `main()` - Flag parsing, TLS decision, startup orchestration
+- `main()` - Flag parsing, TLS decision, startup orchestration, mode selection, startup record emission
 
 **Dependencies:**
 - `github.com/lirrensi/looty/internal/server`
@@ -106,6 +108,33 @@ Looty is a client-server application with a Go backend serving a local network a
 - File watching integration
 - Scratchpad state management
 - Route registration
+- Long-running serving independent from how startup metadata is presented
+
+### Runtime Modes
+
+The architecture should distinguish between:
+
+1. **Foreground runtime** — attached CLI presentation plus long-running serve loop
+2. **Background runtime** — detached or persistent serve loop plus persisted/retrievable startup metadata
+3. **Agent-managed runtime** — background-style serve loop plus machine-readable startup metadata intended for another process
+
+The server implementation should remain behaviorally identical across these modes. The mode changes startup orchestration and output handling, not file/scratchpad/network semantics.
+
+### Startup Metadata Boundary
+
+Startup metadata is currently produced inline inside `cmd/blip/main.go` as formatted terminal output. To support background-capable execution cleanly, the architecture should introduce a first-class startup metadata model produced before `server.Start(...)`.
+
+That model should include:
+- served directory
+- selected protocol
+- primary URL
+- all displayable addresses
+- TLS fingerprint when present
+- friend code when present
+- optional PID / timestamp / mode
+
+Foreground presentation (pretty text + QR) should render from that model.
+Background and agent flows should serialize the same model without scraping terminal text.
 
 **Key Components:**
 
@@ -131,6 +160,11 @@ Looty is a client-server application with a Go backend serving a local network a
 - `GetHTML()` - Retrieve embedded HTML with build time injected
 - `GetScratchpad()` / `SetScratchpad()` - Thread-safe scratchpad access
 - `Broadcast(message)` - Send message to all WebSocket clients
+
+**Lifecycle Note:**
+- The current `Start(cfg)` contract is blocking.
+- A daemon/background architecture will likely require either a higher-level runner around `Start(cfg)` or a split between "construct listener/server" and "serve".
+- Startup metadata generation should complete before the blocking serve call begins.
 
 **TLS Behavior:**
 - If `cfg.UseTLS` is true: creates `tls.Config`, calls `tls.Listen("tcp", addr, tlsConfig)`, then `http.Serve(listener, mux)`
@@ -505,6 +539,12 @@ App starts → discoverServer() → findServer()
 - **No Rate Limiting**: No protection against DoS
 - **No File Deletion**: Upload-only prevents accidental deletion
 - **Self-signed cert warnings**: Browsers show warnings for auto-generated certs; user must verify fingerprint
+- **Startup metadata is presentation-bound today**: important trust details exist only in terminal output, which does not translate cleanly to daemon/service use
+
+### Required architectural direction
+- Trust-critical startup data must be modeled as structured metadata, not only as formatted stdout
+- Background/service execution must preserve retrieval of fingerprint and friend code
+- Agent-facing execution should not require parsing ANSI or QR-decorated output to recover connection details
 
 ### Future Enhancements
 - Optional password protection
@@ -576,6 +616,9 @@ go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(date
 - [ ] HTTPS link opens directly and works (WebSocket `wss://` connects)
 - [ ] `file://` looty.html shows hint when HTTPS server is not found
 - [ ] Certificate fingerprint is uppercase colon-separated hex
+- [ ] Background-capable launch returns or persists a startup record
+- [ ] Background-capable launch preserves URL, fingerprint, and friend code when self-signed TLS is active
+- [ ] Agent-managed launch can retrieve startup metadata without scraping decorative console output
 
 ---
 
@@ -593,6 +636,7 @@ go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(date
 - **IP Restrictions**: Use firewall rules to limit access to specific devices
 - **Updates**: Regularly update executable to get bug fixes
 - **Monitoring**: Monitor server logs for errors
+- **Service managers**: systemd or similar supervisors need a stable way to retrieve startup metadata after process launch
 
 ---
 

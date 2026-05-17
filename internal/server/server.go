@@ -1,8 +1,8 @@
 // FILE: internal/server/server.go
 // PURPOSE: HTTP/HTTPS server with WebSocket, file API, scratchpad, and CORS.
-// OWNS: Server lifecycle, route registration, TLS-aware listening.
-// EXPORTS: Start, Config, GetHTML, GetScratchpad, SetScratchpad, Broadcast
-// DOCS: agent_chat/plan_tls-paradigm_2026-05-17.md
+// OWNS: Server lifecycle, route registration, TLS-aware listener construction.
+// EXPORTS: Start, BuildHandler, CreateListener, ServeListener, Config, GetHTML, GetScratchpad, SetScratchpad, Broadcast
+// DOCS: agent_chat/plan_daemon-mode_2026-05-17.md, agent_chat/plan_tls-paradigm_2026-05-17.md
 
 package server
 
@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -75,17 +76,15 @@ type Config struct {
 }
 
 func Start(cfg Config) error {
-	hub = NewHub()
-	go hub.Run()
-
-	// Start file watcher
-	StartWatcher(cfg.ServeDir)
-
-	// Start mDNS announcement
-	if err := StartMDNS(cfg.Port); err != nil {
-		log.Printf("Warning: mDNS failed: %v", err)
+	handler := BuildHandler(cfg)
+	listener, err := CreateListener(cfg)
+	if err != nil {
+		return err
 	}
+	return ServeListener(cfg, listener, handler)
+}
 
+func BuildHandler(cfg Config) http.Handler {
 	s := &Server{
 		serveDir: cfg.ServeDir,
 		port:     cfg.Port,
@@ -93,7 +92,6 @@ func Start(cfg Config) error {
 
 	mux := http.NewServeMux()
 
-	// CORS middleware - wrap all handlers
 	withCORS := func(handler http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -108,21 +106,12 @@ func Start(cfg Config) error {
 		}
 	}
 
-	// Serve embedded index.html at root
 	mux.HandleFunc("/", withCORS(s.serveIndex))
-
-	// Health check for discovery
 	mux.HandleFunc("/ping", withCORS(s.handlePing))
-
-	// File API endpoints
 	mux.HandleFunc("/api/files", withCORS(files.ListHandler(s.serveDir)))
 	mux.HandleFunc("/api/download", withCORS(files.DownloadHandler(s.serveDir)))
 	mux.HandleFunc("/api/upload", withCORS(files.UploadHandler(s.serveDir)))
-
-	// WebSocket endpoint
 	mux.HandleFunc("/ws", withCORS(s.handleWebSocket))
-
-	// Scratchpad API endpoints
 	mux.HandleFunc("/api/scratchpad", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
@@ -134,6 +123,10 @@ func Start(cfg Config) error {
 		}
 	}))
 
+	return mux
+}
+
+func CreateListener(cfg Config) (net.Listener, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	if cfg.UseTLS {
 		tlsConfig := &tls.Config{
@@ -141,11 +134,31 @@ func Start(cfg Config) error {
 		}
 		listener, err := tls.Listen("tcp", addr, tlsConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create TLS listener: %w", err)
+			return nil, fmt.Errorf("failed to create TLS listener: %w", err)
 		}
-		return http.Serve(listener, mux)
+		return listener, nil
 	}
-	return http.ListenAndServe(addr, mux)
+
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create listener: %w", err)
+	}
+	return listener, nil
+}
+
+func ServeListener(cfg Config, listener net.Listener, handler http.Handler) error {
+	hub = NewHub()
+	go hub.Run()
+
+	// Start file watcher
+	StartWatcher(cfg.ServeDir)
+
+	// Start mDNS announcement
+	if err := StartMDNS(cfg.Port); err != nil {
+		log.Printf("Warning: mDNS failed: %v", err)
+	}
+
+	return http.Serve(listener, handler)
 }
 
 func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
