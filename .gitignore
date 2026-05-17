@@ -27,6 +27,7 @@ looty.html
 node_modules/
 pnpm-debug.log*
 .pnpm-store/
+web/pnpm-workspace.yaml
 
 # Web build
 web/dist/
