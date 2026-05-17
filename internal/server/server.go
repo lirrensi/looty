@@ -1,6 +1,13 @@
+// FILE: internal/server/server.go
+// PURPOSE: HTTP/HTTPS server with WebSocket, file API, scratchpad, and CORS.
+// OWNS: Server lifecycle, route registration, TLS-aware listening.
+// EXPORTS: Start, Config, GetHTML, GetScratchpad, SetScratchpad, Broadcast
+// DOCS: agent_chat/plan_tls-paradigm_2026-05-17.md
+
 package server
 
 import (
+	"crypto/tls"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -58,21 +65,30 @@ type Server struct {
 	port     int
 }
 
-func Start(serveDir string, port int) error {
+// Config holds server startup configuration.
+type Config struct {
+	ServeDir string
+	Host     string
+	Port     int
+	UseTLS   bool
+	Cert     tls.Certificate // zero value if not TLS
+}
+
+func Start(cfg Config) error {
 	hub = NewHub()
 	go hub.Run()
 
 	// Start file watcher
-	StartWatcher(serveDir)
+	StartWatcher(cfg.ServeDir)
 
 	// Start mDNS announcement
-	if err := StartMDNS(port); err != nil {
+	if err := StartMDNS(cfg.Port); err != nil {
 		log.Printf("Warning: mDNS failed: %v", err)
 	}
 
 	s := &Server{
-		serveDir: serveDir,
-		port:     port,
+		serveDir: cfg.ServeDir,
+		port:     cfg.Port,
 	}
 
 	mux := http.NewServeMux()
@@ -118,7 +134,17 @@ func Start(serveDir string, port int) error {
 		}
 	}))
 
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	if cfg.UseTLS {
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cfg.Cert},
+		}
+		listener, err := tls.Listen("tcp", addr, tlsConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create TLS listener: %w", err)
+		}
+		return http.Serve(listener, mux)
+	}
 	return http.ListenAndServe(addr, mux)
 }
 

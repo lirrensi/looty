@@ -118,15 +118,20 @@ export function discovery() {
       
       this.status = 'failed'
       this.logMsg('ERROR: No server found on network')
+      if (window.location.protocol.startsWith('file:')) {
+        this.logMsg('Hint: If the server is using HTTPS, open the shared link directly instead of looty.html')
+      }
       return null
     },
     
     async pingServer(ip) {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 500)
+      // When on file://, we can only probe HTTP (mixed content blocks HTTPS from file://)
+      const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
       
       try {
-        const response = await fetch(`http://${ip}:41111/ping`, {
+        const response = await fetch(`${protocol}://${ip}:41111/ping`, {
           method: 'GET',
           signal: controller.signal,
         })

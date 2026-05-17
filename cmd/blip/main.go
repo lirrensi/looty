@@ -1,12 +1,22 @@
+// FILE: cmd/blip/main.go
+// PURPOSE: CLI entry point for Looty. Parses flags, decides TLS mode, prints URLs/QR, and starts the server.
+// OWNS: Flag parsing, TLS decision logic, startup orchestration, console output.
+// EXPORTS: main
+// DOCS: agent_chat/plan_tls-paradigm_2026-05-17.md
+
 package main
 
 import (
+	"crypto/tls"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/lirrensi/looty/internal/certgen"
 	"github.com/lirrensi/looty/internal/server"
 	"github.com/mdp/qrterminal/v3"
 )
@@ -94,43 +104,38 @@ func isVirtualAdapter(name string) bool {
 	// Common virtual adapter patterns
 	virtuals := []string{"VMware", "VirtualBox", "Hyper-V", "WSL", "Docker", "vEthernet", "Loopback", "Tunnel", "TAP", "WireGuard"}
 	for _, v := range virtuals {
-		if containsIgnoreCase(name, v) {
+		if strings.Contains(strings.ToLower(name), strings.ToLower(v)) {
 			return true
 		}
 	}
 	return false
 }
 
-func containsIgnoreCase(s, substr string) bool {
-	sLower := make([]byte, len(s))
-	substrLower := make([]byte, len(substr))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 32
-		}
-		sLower[i] = c
+func isLoopback(host string) bool {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
 	}
-	for i := 0; i < len(substr); i++ {
-		c := substr[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 32
-		}
-		substrLower[i] = c
-	}
-	return contains(string(sLower), string(substrLower))
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		return true
 	}
 	return false
+}
+
+func isAllInterfaces(host string) bool {
+	return host == "" || host == "0.0.0.0" || host == "::"
 }
 
 func main() {
+	// CLI flags
+	hostFlag := flag.String("host", "", "Host to bind to (default: all interfaces)")
+	portFlag := flag.Int("port", 41111, "Port to listen on")
+	useTLSFlag := flag.Bool("tls", false, "Force TLS with auto-generated certificate")
+	noTLSFlag := flag.Bool("no-tls", false, "Force plain HTTP (opt out of auto-TLS)")
+	certPath := flag.String("cert", "", "Path to TLS certificate file")
+	keyPath := flag.String("key", "", "Path to TLS private key file")
+	flag.Parse()
+
 	serveDir, err := os.Getwd()
 	if err != nil {
 		log.Fatal("Failed to get working directory:", err)
@@ -174,39 +179,128 @@ func main() {
 
 	fmt.Printf("\nLOOTY serving: %s\n\n", serveDir)
 
-	ips := getLocalIPs()
-	primaryIP := getPrimaryIP()
+	// TLS decision logic
+	var useTLS bool
+	var cert tls.Certificate
+	var fingerprint, friendCode string
 
-	if primaryIP != "" {
-		url := fmt.Sprintf("http://%s:41111", primaryIP)
-		fmt.Printf("Scan QR code or open: %s\n\n", url)
+	if *certPath != "" && *keyPath != "" {
+		useTLS = true
+		loadedCert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+		if err != nil {
+			log.Fatalf("Failed to load TLS certificate: %v", err)
+		}
+		cert = loadedCert
+	} else if *noTLSFlag {
+		useTLS = false
+	} else if *useTLSFlag {
+		useTLS = true
+	} else {
+		// Default based on bind address
+		if isLoopback(*hostFlag) {
+			useTLS = false
+		} else {
+			// Empty string (all interfaces), 0.0.0.0, ::, or any non-loopback IP
+			useTLS = true
+		}
+	}
 
-		// Print QR code (half-block mode for smaller size)
-		qrterminal.GenerateWithConfig(url, qrterminal.Config{
-			Level:      qrterminal.M,
-			Writer:     os.Stdout,
-			HalfBlocks: true,
-		})
-	} else if len(ips) > 0 {
-		// Fallback to first IP if no primary detected
-		url := fmt.Sprintf("http://%s:41111", ips[0])
-		fmt.Printf("Scan QR code or open: %s\n\n", url)
+	if useTLS {
+		if cert.Certificate == nil {
+			// Auto-generate certificate
+			genCert, fp, fc, err := certgen.GenerateSelfSigned()
+			if err != nil {
+				log.Fatalf("Failed to generate TLS certificate: %v", err)
+			}
+			cert = *genCert
+			fingerprint = fp
+			friendCode = fc
+		}
+	}
 
-		qrterminal.GenerateWithConfig(url, qrterminal.Config{
+	// Determine protocol and addresses to print
+	protocol := "http"
+	if useTLS {
+		protocol = "https"
+	}
+
+	var displayAddrs []string
+	if isAllInterfaces(*hostFlag) {
+		ips := getLocalIPs()
+		primaryIP := getPrimaryIP()
+
+		if primaryIP != "" {
+			displayAddrs = append(displayAddrs, primaryIP)
+		} else if len(ips) > 0 {
+			displayAddrs = append(displayAddrs, ips[0])
+		}
+		for _, ip := range ips {
+			// Avoid duplicates
+			found := false
+			for _, da := range displayAddrs {
+				if da == ip {
+					found = true
+					break
+				}
+			}
+			if !found {
+				displayAddrs = append(displayAddrs, ip)
+			}
+		}
+		displayAddrs = append(displayAddrs, "localhost")
+	} else if isLoopback(*hostFlag) {
+		displayAddrs = []string{"localhost", "127.0.0.1"}
+	} else {
+		displayAddrs = []string{*hostFlag}
+	}
+
+	// Print primary URL and QR code
+	if len(displayAddrs) > 0 {
+		primaryURL := fmt.Sprintf("%s://%s:%d", protocol, displayAddrs[0], *portFlag)
+		if useTLS {
+			fmt.Printf("🔒 %s\n", primaryURL)
+			if fingerprint != "" {
+				fmt.Printf("   Fingerprint: %s\n", fingerprint)
+			}
+			if friendCode != "" {
+				fmt.Printf("   Friend code: %s\n", friendCode)
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("Scan QR code or open: %s\n\n", primaryURL)
+		}
+
+		qrterminal.GenerateWithConfig(primaryURL, qrterminal.Config{
 			Level:      qrterminal.M,
 			Writer:     os.Stdout,
 			HalfBlocks: true,
 		})
 	}
 
+	// Print all addresses
 	fmt.Printf("\nAll addresses:\n")
-	for _, ip := range ips {
-		fmt.Printf("  http://%s:41111\n", ip)
+	for _, addr := range displayAddrs {
+		fmt.Printf("  %s://%s:%d\n", protocol, addr, *portFlag)
 	}
-	fmt.Printf("  http://localhost:41111\n")
-	fmt.Printf("\nOr open ~/looty/looty.html on your phone\n\n")
 
-	if err := server.Start(serveDir, 41111); err != nil {
+	if useTLS {
+		fmt.Println()
+		fmt.Println("Verify the certificate fingerprint matches what was shared with you.")
+		fmt.Println("⚠️  looty.html discovery does not work with HTTPS. Share the direct link above.")
+	} else {
+		fmt.Printf("\nOr open ~/looty/looty.html on your phone\n")
+	}
+	fmt.Println()
+
+	cfg := server.Config{
+		ServeDir: serveDir,
+		Host:     *hostFlag,
+		Port:     *portFlag,
+		UseTLS:   useTLS,
+		Cert:     cert,
+	}
+
+	if err := server.Start(cfg); err != nil {
 		log.Fatal("Server error:", err)
 	}
 }

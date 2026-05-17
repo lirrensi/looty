@@ -213,22 +213,29 @@ looty.html         # Copied to phone once, works forever
 ## Security Model
 
 ### Current Implementation
-- **No authentication** — anyone on LAN can access
-- **HTTP only** — no encryption (local network only)
+- **Auto-TLS for remote access** — when binding to non-loopback addresses, Looty auto-generates a self-signed TLS certificate per run
+- **Fingerprint verification** — the terminal displays the certificate SHA-256 fingerprint and a human-readable "friend code". Compare it in your browser to verify you're connecting to your server (SSH-style host key trust)
+- **Plain HTTP for localhost** — when binding to `localhost` or `127.0.0.1`, serves plain HTTP (loopback is trusted)
+- **Opt-out available** — use `-no-tls` flag for plain HTTP on any interface (legacy LAN mode)
+- **No authentication** — anyone who can reach the address can access (protected by TLS when enabled)
 - **Path traversal protection** — absolute path validation prevents directory traversal
 - **Port 41111** — dedicated port, not a standard service
 - **Serves ONLY the folder it's in** — cannot access parent directories
 
-### Future Enhancements (Not Implemented)
-- Optional password protection
-- HTTPS/TLS encryption
-- Read-only mode for shared folders
-- User authentication with LAN IP restrictions
-- File access logging
+### TLS Modes
+
+| Scenario | Command | Behavior |
+|---|---|---|
+| Localhost only | `looty -host 127.0.0.1` | Plain HTTP, no certificate warnings |
+| Share across networks / untrusted LAN | `looty` or `looty -host 0.0.0.0` | Auto-TLS with fingerprint verification |
+| Legacy LAN mode (trusted network) | `looty -no-tls` | Plain HTTP on all interfaces |
+| Custom certificate | `looty -cert cert.pem -key key.pem` | Uses your own TLS certificate |
+| Force TLS on localhost | `looty -tls -host 127.0.0.1` | Auto-TLS even on loopback |
 
 ### Security Considerations
-- Use only on trusted local networks
-- Don't expose to public internet
+- On untrusted networks, always use TLS mode and verify the fingerprint
+- Don't expose `-no-tls` mode to public internet
+- Self-signed certificates are short-lived (24 hours) and generated per run
 - Regularly update executable to get security patches
 - Firewall rules can restrict access to specific devices
 
@@ -339,10 +346,10 @@ One executable. One HTML file. Open both. They find each other. You're done.
 ## FAQ
 
 **Q: Can I use it across different networks?**
-A: No, it requires devices to be on the same local network.
+A: Yes, if you can reach the host IP. Run `looty` (auto-TLS), share the `https://` link and fingerprint with your phone. Open the link directly — `looty.html` file:// discovery does not work with HTTPS.
 
 **Q: Is my data secure?**
-A: It's HTTP without encryption. Only use on trusted local networks.
+A: By default on non-loopback addresses, Looty uses auto-generated TLS with certificate fingerprint verification. Compare the fingerprint shown in your terminal with what your browser displays to confirm it's your server. For trusted LAN only, you can use `-no-tls`.
 
 **Q: Can multiple phones connect?**
 A: Yes, multiple devices can connect simultaneously.

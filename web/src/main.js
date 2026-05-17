@@ -37,7 +37,8 @@ Alpine.data('app', () => ({
       this.serverIP = ip
       this.connected = true
       this.status = 'connected'
-      window.API_BASE = `http://${ip}:41111`
+      const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
+      window.API_BASE = `${protocol}://${ip}:41111`
     } else {
       this.status = 'failed'
     }
@@ -53,7 +54,8 @@ Alpine.data('app', () => ({
       this.serverIP = this.manualIP
       this.connected = true
       this.status = 'connected'
-      window.API_BASE = `http://${this.manualIP}:41111`
+      const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
+      window.API_BASE = `${protocol}://${this.manualIP}:41111`
     }
   },
 }))

@@ -79,17 +79,22 @@ Looty is a client-server application with a Go backend serving a local network a
 ### 1. Main Entry Point (`cmd/blip/main.go`)
 
 **Responsibilities:**
-- Get current working directory (serves this folder)
+- Parse CLI flags (`-host`, `-port`, `-tls`, `-no-tls`, `-cert`, `-key`)
+- Determine TLS mode based on bind address and flags
+- Auto-generate self-signed certificate when needed (via `internal/certgen`)
+- Print access URLs, QR code, certificate fingerprint, and friend code to console
 - Get executable path for extracting looty.html
-- Call `server.Start()` to begin serving
-- Print access URLs and instructions to console
+- Call `server.Start(cfg)` to begin serving
 
 **Key Functions:**
 - `getLocalIPs()` - Scans network interfaces for local IPs
-- `main()` - Orchestrates startup
+- `getPrimaryIP()` - Returns IP of interface with default gateway
+- `isLoopback(host)` / `isAllInterfaces(host)` - Bind address classification
+- `main()` - Flag parsing, TLS decision, startup orchestration
 
 **Dependencies:**
-- `github.com/user/looty/internal/server`
+- `github.com/lirrensi/looty/internal/server`
+- `github.com/lirrensi/looty/internal/certgen`
 
 ---
 
@@ -118,11 +123,18 @@ Looty is a client-server application with a Go backend serving a local network a
 **Middleware:**
 - CORS handler for all routes (Access-Control-Allow-Origin: *)
 
+**Key Types:**
+- `Config` - Server startup configuration (`ServeDir`, `Host`, `Port`, `UseTLS`, `Cert`)
+
 **Key Functions:**
-- `Start(serveDir, port)` - Initialize and start HTTP server
+- `Start(cfg Config)` - Initialize and start HTTP or HTTPS server based on config
 - `GetHTML()` - Retrieve embedded HTML with build time injected
 - `GetScratchpad()` / `SetScratchpad()` - Thread-safe scratchpad access
 - `Broadcast(message)` - Send message to all WebSocket clients
+
+**TLS Behavior:**
+- If `cfg.UseTLS` is true: creates `tls.Config`, calls `tls.Listen("tcp", addr, tlsConfig)`, then `http.Serve(listener, mux)`
+- If false: `http.ListenAndServe(addr, mux)`
 
 #### 2.2 WebSocket Hub (`websocket.go`)
 
@@ -171,6 +183,28 @@ Client send → readPump → Parse → Broadcast hub → writePump → All clien
 
 **Dependencies:**
 - `github.com/grandcat/zeroconf`
+
+#### 2.5 Certificate Generator (`internal/certgen/certgen.go`)
+
+**Responsibilities:**
+- Generate an in-memory self-signed TLS certificate per server run
+- Embed a random human-readable friend code in `Subject.CommonName`
+- Compute SHA-256 fingerprint of the DER-encoded certificate
+- Return `tls.Certificate` ready for use with `tls.Config`
+
+**Key Functions:**
+- `GenerateSelfSigned()` - Returns `(*tls.Certificate, fingerprint, friendCode, error)`
+
+**Certificate Properties:**
+- 2048-bit RSA key pair
+- 24-hour validity (per-session, short-lived)
+- `DNSNames`: `["localhost", "looty.local"]`
+- `KeyUsage`: DigitalSignature + KeyEncipherment
+- `ExtKeyUsage`: ServerAuth
+- Self-signed with the same private key
+
+**Friend Code Format:**
+- `looty-<adjective>-<noun>-<4-digit>` (e.g. `looty-brave-dolphin-4217`)
 
 ---
 
@@ -456,21 +490,24 @@ App starts → discoverServer() → findServer()
 ## Security Model
 
 ### Current Protections
+- **Auto-TLS with fingerprint verification**: On non-loopback binds, auto-generates a self-signed cert per run. Terminal prints SHA-256 fingerprint and friend code for browser-side verification (SSH-style trust-on-first-use)
+- **Plain HTTP on loopback**: `localhost`/`127.0.0.1` bindings use plain HTTP without cert warnings
+- **Opt-out flag**: `-no-tls` forces plain HTTP for legacy LAN mode
+- **Custom certificate support**: `-cert` and `-key` flags for user-provided TLS certificates
 - **Path Traversal**: Absolute path validation prevents directory traversal
 - **Directory Traversal**: Checks for `..` in paths
 - **Binary Detection**: Prevents showing potentially malicious files
 - **Port Isolation**: Uses non-standard port (41111)
-- **CORS**: Allows all origins (LAN use case)
+- **CORS**: Allows all origins
 
 ### Limitations
-- **No Authentication**: Anyone on LAN can connect
-- **No Encryption**: HTTP only, data transmitted in plaintext
+- **No Authentication**: Anyone who can reach the address can connect
 - **No Rate Limiting**: No protection against DoS
 - **No File Deletion**: Upload-only prevents accidental deletion
+- **Self-signed cert warnings**: Browsers show warnings for auto-generated certs; user must verify fingerprint
 
 ### Future Enhancements
 - Optional password protection
-- HTTPS/TLS encryption
 - Rate limiting and authentication
 - File access logging
 - IP-based access control
@@ -492,7 +529,7 @@ looty.exe binary
 
 ### Backend Build
 ```
-go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(date)" -o looty.exe ./cmd/blip
+go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(date)" -o looty.exe ./cmd/blip
 ```
 
 - `BuildTime` string injected into embedded HTML
@@ -516,7 +553,7 @@ go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(date)" -
 
 ### Manual Testing Checklist
 - [ ] Server starts on different ports
-- [ ] Auto-discovery works on different networks
+- [ ] Auto-discovery works on different networks (plain HTTP)
 - [ ] Manual IP entry works
 - [ ] File upload with progress tracking
 - [ ] File download with progress tracking
@@ -529,6 +566,16 @@ go build -ldflags "-X github.com/user/looty/internal/server.BuildTime=$(date)" -
 - [ ] WebSocket reconnects on disconnect
 - [ ] File watching triggers refresh
 - [ ] Multiple devices can connect simultaneously
+- [ ] Auto-TLS starts by default on all interfaces (`looty`)
+- [ ] `-host 127.0.0.1` uses plain HTTP
+- [ ] `-no-tls` uses plain HTTP on all interfaces
+- [ ] `-tls` forces TLS even on localhost
+- [ ] `-cert` + `-key` uses provided certificate
+- [ ] Terminal prints fingerprint and friend code when TLS is active
+- [ ] QR code prints HTTPS URL when TLS is active
+- [ ] HTTPS link opens directly and works (WebSocket `wss://` connects)
+- [ ] `file://` looty.html shows hint when HTTPS server is not found
+- [ ] Certificate fingerprint is uppercase colon-separated hex
 
 ---
 
