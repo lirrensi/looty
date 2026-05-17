@@ -35,3 +35,9 @@ To create a new release:
    ```
 
 **Critical:** The tag MUST be pushed with `git push origin v<VERSION>` — the release workflow only runs when the tag exists on the remote. Pushing the tag is what triggers `softprops/action-gh-release` to create the release automatically.
+
+**Why v1.4.0 works but 1.4.0 breaks:**
+- Git tags use the `v` prefix: `v1.4.0`
+- The `VERSION` file contains just the number: `1.4.0`
+- The workflow auto-detects the tag from the git ref (`v1.4.0`)
+- Never manually override `tag_name` in the workflow — let the action read it from the git ref
