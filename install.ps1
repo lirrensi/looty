@@ -8,10 +8,15 @@ $tempDir = "$env:TEMP\looty"
 Invoke-WebRequest -Uri $url -OutFile $zip
 Expand-Archive -Path $zip -Force -DestinationPath $tempDir
 
+if (-not (Test-Path "$tempDir\looty.exe")) {
+    Remove-Item $zip,$tempDir -Recurse -Force -EA SilentlyContinue
+    Write-Error "Download failed: looty.exe not found in archive"
+}
+
 $installDir = "$env:LOCALAPPDATA\looty"
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
-Move-Item "$tempDir\looty-windows-${arch}.exe" "$installDir\looty.exe" -Force
+Move-Item "$tempDir\looty.exe" "$installDir\looty.exe" -Force
 
 # Create home looty folder for easy access to looty.html
 $homeLootyDir = "$env:USERPROFILE\looty"
