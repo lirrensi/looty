@@ -2,7 +2,7 @@
 // PURPOSE: Orchestrate Looty startup modes, startup record emission, and the server serve loop.
 // OWNS: CLI flag parsing, TLS selection, daemon parent-child launch, startup record generation, startup output routing.
 // EXPORTS: main
-// DOCS: agent_chat/plan_daemon-mode_2026-05-17.md, docs/spec.md, docs/arch.md
+// DOCS: agent_chat/plan_qr-port-artifact_2026-05-17.md, docs/spec.md, docs/arch.md
 
 package main
 
@@ -30,6 +30,7 @@ const daemonStartupTimeout = 10 * time.Second
 type cliOptions struct {
 	host          string
 	port          int
+	serveDir      string
 	useTLSFlag    bool
 	noTLSFlag     bool
 	certPath      string
@@ -55,16 +56,20 @@ func main() {
 }
 
 func run(options cliOptions) error {
-	serveDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
+	serveDir := options.serveDir
+	if serveDir == "" {
+		var err error
+		serveDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get working directory: %w", err)
+		}
 	}
 
 	if options.daemon && !options.daemonChild {
 		return runDaemonParent(options, serveDir)
 	}
 
-	htmlPaths, err := extractHTMLPaths()
+	htmlPaths, err := extractHTMLPaths(options.port)
 	if err != nil {
 		log.Printf("Warning: %v", err)
 	}
@@ -88,6 +93,11 @@ func run(options cliOptions) error {
 		return err
 	}
 
+	// Warn about firewall when binding to non-loopback (remote / VPS usage).
+	if !isLoopbackHost(options.host) {
+		log.Printf("⚠️  Port %d — make sure your firewall allows it", options.port)
+	}
+
 	mode := determineMode(options)
 	record := server.NewStartupRecord(
 		mode,
@@ -102,7 +112,8 @@ func run(options cliOptions) error {
 		htmlPaths,
 	)
 
-	if err := persistStartupOutputs(options, record); err != nil {
+	record, err = persistStartupOutputs(options, record)
+	if err != nil {
 		_ = listener.Close()
 		return err
 	}
@@ -121,6 +132,7 @@ func parseCLI(args []string) cliOptions {
 	options := cliOptions{originalFlags: flags}
 	flags.StringVar(&options.host, "host", "", "Host to bind to (default: all interfaces)")
 	flags.IntVar(&options.port, "port", 41111, "Port to listen on")
+	flags.StringVar(&options.serveDir, "serve-dir", "", "Directory to serve (default: current working directory)")
 	flags.BoolVar(&options.useTLSFlag, "tls", false, "Force TLS with auto-generated certificate")
 	flags.BoolVar(&options.noTLSFlag, "no-tls", false, "Force plain HTTP (opt out of auto-TLS)")
 	flags.StringVar(&options.certPath, "cert", "", "Path to TLS certificate file")
@@ -175,7 +187,8 @@ func runDaemonParent(options cliOptions, serveDir string) error {
 	}
 
 	if options.jsonFile != "" {
-		if err := server.WriteStartupRecordFile(options.jsonFile, record); err != nil {
+		record, err = writeUserFacingStartupArtifacts(options.jsonFile, record)
+		if err != nil {
 			return fmt.Errorf("write requested startup record file: %w", err)
 		}
 	}
@@ -231,21 +244,23 @@ func determineMode(options cliOptions) string {
 	return "foreground"
 }
 
-func persistStartupOutputs(options cliOptions, record server.StartupRecord) error {
+func persistStartupOutputs(options cliOptions, record server.StartupRecord) (server.StartupRecord, error) {
 	if options.startupFile != "" {
 		if err := server.WriteStartupRecordFile(options.startupFile, record); err != nil {
-			return fmt.Errorf("write daemon startup handoff: %w", err)
+			return record, fmt.Errorf("write daemon startup handoff: %w", err)
 		}
 	}
 	if options.jsonFile != "" && options.daemonChild {
-		return nil
+		return record, nil
 	}
 	if options.jsonFile != "" {
-		if err := server.WriteStartupRecordFile(options.jsonFile, record); err != nil {
-			return fmt.Errorf("write startup record file: %w", err)
+		updatedRecord, err := writeUserFacingStartupArtifacts(options.jsonFile, record)
+		if err != nil {
+			return record, fmt.Errorf("write startup record file: %w", err)
 		}
+		record = updatedRecord
 	}
-	return nil
+	return record, nil
 }
 
 func emitStartupOutput(options cliOptions, record server.StartupRecord) {
@@ -268,7 +283,7 @@ func emitStartupOutput(options cliOptions, record server.StartupRecord) {
 	}
 }
 
-func extractHTMLPaths() ([]string, error) {
+func extractHTMLPaths(port int) ([]string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get executable path: %w", err)
@@ -278,6 +293,8 @@ func extractHTMLPaths() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not get embedded HTML: %w", err)
 	}
+
+	html = applyExtractedHTMLPort(html, port)
 
 	paths := make([]string, 0, 2)
 
@@ -311,10 +328,31 @@ func extractHTMLPaths() ([]string, error) {
 	return paths, nil
 }
 
+func writeUserFacingStartupArtifacts(jsonPath string, record server.StartupRecord) (server.StartupRecord, error) {
+	qrPath := server.DeriveStartupQRFilePath(jsonPath)
+	if err := server.WriteStartupQRCodeSVGFile(qrPath, record.PrimaryURL); err != nil {
+		return record, fmt.Errorf("write startup QR artifact: %w", err)
+	}
+	record.QRImagePath = qrPath
+	if err := server.WriteStartupRecordFile(jsonPath, record); err != nil {
+		return record, err
+	}
+	return record, nil
+}
+
+func applyExtractedHTMLPort(html []byte, port int) []byte {
+	const marker = "<head>"
+	injection := fmt.Sprintf("<head>\n  <script>window.__LOOTY_PORT__ = %d;</script>", port)
+	return []byte(strings.Replace(string(html), marker, injection, 1))
+}
+
 func buildDaemonChildArgs(options cliOptions, startupFile string) []string {
 	args := []string{"-daemon-child", "-startup-file", startupFile, "-port", strconv.Itoa(options.port)}
 	if options.host != "" {
 		args = append(args, "-host", options.host)
+	}
+	if options.serveDir != "" {
+		args = append(args, "-serve-dir", options.serveDir)
 	}
 	if options.useTLSFlag {
 		args = append(args, "-tls")

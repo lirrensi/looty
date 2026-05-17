@@ -28,7 +28,7 @@ No configuration. No accounts. No cloud. Just works.
 ```
 1. User copies looty.exe to a folder
 2. User runs looty.exe
-   - Server starts on port 41111
+   - Server starts on port 41111 by default unless `-port` is specified
    - looty.html is extracted to the same folder (if not present)
 3. User copies looty.html to phone (once, ever)
 4. User opens looty.html on phone
@@ -46,6 +46,8 @@ Looty supports three user-visible ways to run the same server:
 3. **Agent-managed mode** — start Looty in the background on behalf of a user, but return the same startup details programmatically so another tool or agent can relay them back to the user.
 
 In all modes, the served resource is still "this folder for as long as this process lives". The difference is how the process is attached and how startup information is delivered.
+
+By default, Looty serves the current working directory. Use `-serve-dir <path>` to serve a different directory.
 
 ---
 
@@ -75,7 +77,7 @@ In all modes, the served resource is still "this folder for as long as this proc
 
 ### Discovery
 - **Cache first**: Checks localStorage for previously-found server IP (instant reconnect)
-- **mDNS magic**: Server announces as `looty.local:41111` — browsers resolve automatically
+- **mDNS magic**: Server announces as `looty.local:<effective-port>` — browsers resolve automatically
 - **Smart parallel scan**: Probes common subnets (192.168.0.x, 192.168.1.x, 10.0.0.x) with first 32 IPs each in parallel
 - **Fallback expansion**: If not found, expands to full 254 IPs per subnet
 - **Manual IP entry**: Final fallback if auto-discovery fails
@@ -98,15 +100,17 @@ In all modes, the served resource is still "this folder for as long as this proc
 - Command-line output with:
   - Served directory path
   - Available IP addresses
-  - Access URLs (http://IP:41111)
+  - Access URLs using the effective configured port
   - Instructions for copying looty.html to phone
   - QR code in foreground mode
   - TLS fingerprint and friend code when self-signed TLS is active
+- Firewall advisory log when binding to a non-loopback address
 
 ### Background Startup Artifact
 - Background-capable runs must still produce a retrievable startup record
 - That record must include the connection URL and any trust material needed to connect safely
 - In self-signed TLS mode, the startup record must include the certificate fingerprint and friend code
+- When startup details are written to a JSON file, Looty also writes a sibling QR SVG artifact that another tool or agent can send directly to the user
 - The startup record is intended for users, service managers, and agents that need fire-and-forget startup without losing connection details
 
 ### Mobile (looty.html)

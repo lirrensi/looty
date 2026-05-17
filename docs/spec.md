@@ -65,7 +65,7 @@ A conforming Looty implementation MUST:
 
 ### 1. Server Startup
 
-- Looty MUST determine the served directory from the process working directory unless explicitly specified by a future compatible mechanism.
+- Looty MUST determine the served directory from the process working directory unless overridden by `-serve-dir`.
 - Looty MUST determine whether to serve HTTP or HTTPS based on bind mode and TLS-related flags.
 - Looty MUST generate or load all startup connection details before entering long-running serve mode.
 
@@ -87,6 +87,7 @@ The startup record MAY additionally contain:
 - process identifier
 - start timestamp
 - QR payload URL
+- QR image file path
 - execution mode
 
 ### 3. Foreground Mode
@@ -101,12 +102,14 @@ The startup record MAY additionally contain:
 - In background mode, Looty MUST preserve the startup record in a retrievable form.
 - The retrievable startup record MUST remain available long enough for a user or supervising process to obtain the connection details after launch.
 - Background mode MUST NOT discard TLS trust material when self-signed TLS is active.
+- When a JSON startup record file is requested, Looty MUST write a sibling QR image artifact for the primary connection URL.
 
 ### 5. Agent-Managed Mode
 
 - Agent-managed launches MUST provide the same startup record semantics as background mode.
 - Agent-managed launches MUST support machine-readable startup record retrieval.
 - A supervising process MUST be able to relay the primary URL and any TLS trust material to the end user without scraping decorative terminal output.
+- When an agent-managed launch writes a JSON startup record file, the supervising process MUST also be able to retrieve a QR image artifact from the filesystem without rendering the QR code itself.
 
 ### 6. TLS Trust Signaling
 
@@ -148,6 +151,7 @@ The startup record MAY additionally contain:
 | `friendCode` | Conditional | Required for self-signed TLS |
 | `pid` | Optional | Running process id |
 | `startedAt` | Optional | Process start time |
+| `qrImagePath` | Optional | Filesystem path to a rendered QR image artifact |
 
 ## Error Handling and Edge Cases
 
@@ -162,6 +166,7 @@ The startup record MAY additionally contain:
 - Machine-readable startup output MUST preserve exact fingerprint values without lossy formatting.
 - Background launch mechanisms SHOULD avoid exposing private key material in logs, temp files, or process arguments.
 - Plain HTTP on non-loopback networks SHOULD be treated as trusted-network-only behavior.
+- When binding to a non-loopback address, Looty SHOULD emit a startup advisory reminding the user to verify that the listening port is reachable through any firewall or network policy.
 
 ## References
 

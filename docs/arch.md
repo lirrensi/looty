@@ -79,12 +79,14 @@ Looty is a client-server application with a Go backend serving a local network a
 ### 1. Main Entry Point (`cmd/blip/main.go`)
 
 **Responsibilities:**
-- Parse CLI flags (`-host`, `-port`, `-tls`, `-no-tls`, `-cert`, `-key`)
+- Parse CLI flags (`-host`, `-port`, `-serve-dir`, `-tls`, `-no-tls`, `-cert`, `-key`)
 - Determine TLS mode based on bind address and flags
 - Auto-generate self-signed certificate when needed (via `internal/certgen`)
 - Build startup metadata before serving begins
 - Print access URLs, QR code, certificate fingerprint, and friend code to console in foreground mode
 - Emit or persist machine-readable startup metadata in background-capable modes
+- Write a sibling QR image artifact when a user-facing startup JSON file is requested
+- Emit a firewall advisory log when binding to a non-loopback address
 - Get executable path for extracting looty.html
 - Call `server.Start(cfg)` to begin serving
 
@@ -92,7 +94,7 @@ Looty is a client-server application with a Go backend serving a local network a
 - `getLocalIPs()` - Scans network interfaces for local IPs
 - `getPrimaryIP()` - Returns IP of interface with default gateway
 - `isLoopback(host)` / `isAllInterfaces(host)` - Bind address classification
-- `main()` - Flag parsing, TLS decision, startup orchestration, mode selection, startup record emission
+- `main()` - Flag parsing, TLS decision, served directory resolution, startup orchestration, mode selection, startup record emission
 
 **Dependencies:**
 - `github.com/lirrensi/looty/internal/server`
@@ -131,10 +133,11 @@ That model should include:
 - all displayable addresses
 - TLS fingerprint when present
 - friend code when present
+- QR image file path when present
 - optional PID / timestamp / mode
 
 Foreground presentation (pretty text + QR) should render from that model.
-Background and agent flows should serialize the same model without scraping terminal text.
+Background and agent flows should serialize the same model without scraping terminal text, and user-facing JSON-file flows should write a sibling QR image artifact from the same startup metadata.
 
 **Key Components:**
 
@@ -347,7 +350,7 @@ Client send → readPump → Parse → Broadcast hub → writePump → All clien
    - Falls through if cached IP fails
 
 2. **mDNS/.local hostname** - Zero-config discovery
-   - Tries `http://looty.local:41111/ping`
+   - Tries `http://looty.local:<configured-port>/ping`
    - Works on most home networks without configuration
    - Browsers resolve `.local` via OS mDNS resolver
 
@@ -446,7 +449,7 @@ WebSocket receives message → onmessage() → update content + history
 ```
 App starts → discoverServer() → findServer()
   → Try cached IP (localStorage) → pingServer() → success?
-  → Try looty.local:41111 → pingServer() → success?
+  → Try looty.local:<configured-port> → pingServer() → success?
   → Probe common subnets (first 32 IPs each, parallel) → pingServer() → success?
   → Expand to full subnet scan (254 IPs per subnet, parallel) → success?
   → Manual entry or fail
@@ -531,7 +534,7 @@ App starts → discoverServer() → findServer()
 - **Path Traversal**: Absolute path validation prevents directory traversal
 - **Directory Traversal**: Checks for `..` in paths
 - **Binary Detection**: Prevents showing potentially malicious files
-- **Port Isolation**: Uses non-standard port (41111)
+- **Port Isolation**: Defaults to non-standard port 41111 but allows explicit `-port` override
 - **CORS**: Allows all origins
 
 ### Limitations
@@ -619,6 +622,8 @@ go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(date
 - [ ] Background-capable launch returns or persists a startup record
 - [ ] Background-capable launch preserves URL, fingerprint, and friend code when self-signed TLS is active
 - [ ] Agent-managed launch can retrieve startup metadata without scraping decorative console output
+- [ ] `-json-file` writes a sibling QR image artifact
+- [ ] Extracted `looty.html` uses the configured non-default port
 
 ---
 
@@ -631,8 +636,8 @@ go build -ldflags "-X github.com/lirrensi/looty/internal/server.BuildTime=$(date
 4. Open `looty.html` in phone browser
 
 ### Production Considerations
-- **Firewall**: Allow port 41111 through firewall
-- **Port Forwarding**: If accessing from outside LAN, forward port 41111
+- **Firewall**: Allow the effective configured port through firewall
+- **Port Forwarding**: If accessing from outside LAN, forward the effective configured port
 - **IP Restrictions**: Use firewall rules to limit access to specific devices
 - **Updates**: Regularly update executable to get bug fixes
 - **Monitoring**: Monitor server logs for errors

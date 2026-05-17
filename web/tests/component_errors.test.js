@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { discovery } from '../src/components/discovery.js'
+import { discovery, resolveLootyPort } from '../src/components/discovery.js'
 import { clipboardPanel } from '../src/components/clipboard.js'
 import { fileBrowser } from '../src/components/fileBrowser.js'
 
@@ -24,9 +24,9 @@ function setGlobals(overrides) {
 
 test('discovery pingServer uses HTTPS and returns null on failure', async () => {
   const restore = setGlobals({
-    window: { location: { protocol: 'https:' } },
+    window: { location: { protocol: 'https:', port: '', host: 'example.local', hostname: 'example.local', __LOOTY_PORT__: 41112 } },
     fetch: async (url) => {
-      assert.equal(url, 'https://example.local:41111/ping')
+      assert.equal(url, 'https://example.local:41112/ping')
       throw new Error('offline')
     },
   })
@@ -39,9 +39,21 @@ test('discovery pingServer uses HTTPS and returns null on failure', async () => 
   }
 })
 
+test('discovery resolves configured non-default port before fallback', () => {
+  const restore = setGlobals({
+    window: { __LOOTY_PORT__: 41112, location: { port: '', protocol: 'file:' } },
+  })
+
+  try {
+    assert.equal(resolveLootyPort(), 41112)
+  } finally {
+    restore()
+  }
+})
+
 test('discovery findServer surfaces final network failure and hint', async () => {
   const restore = setGlobals({
-    window: { location: { protocol: 'file:' } },
+    window: { __LOOTY_PORT__: 41112, location: { protocol: 'file:', port: '' } },
     localStorage: {
       getItem: () => null,
       setItem: () => {},
@@ -58,6 +70,7 @@ test('discovery findServer surfaces final network failure and hint', async () =>
 
     assert.equal(await d.findServer(), null)
     assert.equal(d.status, 'failed')
+    assert.match(d.log.join('\n'), /Trying looty\.local:41112 \(mDNS\)/)
     assert.match(d.log.join('\n'), /ERROR: No server found on network/)
     assert.match(d.log.join('\n'), /open the shared link directly instead of looty.html/)
   } finally {

@@ -1,9 +1,30 @@
+// FILE: web/src/components/discovery.js
+// PURPOSE: Discover a reachable Looty server for standalone mobile clients and derive the effective runtime port.
+// OWNS: Discovery scan order, configured-port resolution, cached endpoint reuse.
+// EXPORTS: discovery, resolveLootyPort
+// DOCS: agent_chat/plan_qr-port-artifact_2026-05-17.md, docs/spec.md, docs/arch.md
+
+export function resolveLootyPort() {
+  const configuredPort = Number(window.__LOOTY_PORT__)
+  if (Number.isInteger(configuredPort) && configuredPort > 0) {
+    return configuredPort
+  }
+
+  const locationPort = Number(window.location.port)
+  if (Number.isInteger(locationPort) && locationPort > 0) {
+    return locationPort
+  }
+
+  return 41111
+}
+
 export function discovery() {
   return {
     status: 'searching', // searching, connected, failed
     serverIP: '',
     log: [], // Track all attempts
     cachedIPKey: 'looty_cached_ip',
+    serverPort: resolveLootyPort(),
     
     logMsg(msg) {
       this.log.push(`[${new Date().toLocaleTimeString()}] ${msg}`)
@@ -29,11 +50,12 @@ export function discovery() {
     async findServer() {
       this.log = []
       this.logMsg('Starting server discovery...')
+      const port = this.serverPort
       
       // If we're already being served from a server (not file://), ping current host first!
       if (!window.location.protocol.startsWith('file:')) {
         const currentHost = window.location.hostname
-        this.logMsg(`Checking current host: ${currentHost}:41111`)
+        this.logMsg(`Checking current host: ${currentHost}:${port}`)
         const found = await this.pingServer(currentHost)
         if (found) {
           this.serverIP = currentHost
@@ -48,7 +70,7 @@ export function discovery() {
       // 1. Try cached IP first (instant reconnect)
       const cachedIP = this.getCachedIP()
       if (cachedIP) {
-        this.logMsg(`Trying cached IP: ${cachedIP}:41111`)
+        this.logMsg(`Trying cached IP: ${cachedIP}:${port}`)
         const found = await this.pingServer(cachedIP)
         if (found) {
           this.serverIP = cachedIP
@@ -60,7 +82,7 @@ export function discovery() {
       }
       
       // 2. Try mDNS hostname (zero-config)
-      this.logMsg('Trying looty.local:41111 (mDNS)')
+      this.logMsg(`Trying looty.local:${port} (mDNS)`)
       const localFound = await this.pingServer('looty.local')
       if (localFound) {
         this.serverIP = 'looty.local'
@@ -131,7 +153,7 @@ export function discovery() {
       const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
       
       try {
-        const response = await fetch(`${protocol}://${ip}:41111/ping`, {
+        const response = await fetch(`${protocol}://${ip}:${this.serverPort}/ping`, {
           method: 'GET',
           signal: controller.signal,
         })

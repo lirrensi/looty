@@ -17,14 +17,21 @@ func TestPersistStartupOutputsWritesHandoffForDaemonChild(t *testing.T) {
 	jsonFile := filepath.Join(dir, "record.json")
 	record := server.NewStartupRecord("agent-managed", dir, "127.0.0.1", 41111, false, "", "", 1234, time.Unix(0, 0), nil)
 
-	if err := persistStartupOutputs(cliOptions{startupFile: startupFile, jsonFile: jsonFile, daemonChild: true}, record); err != nil {
+	updatedRecord, err := persistStartupOutputs(cliOptions{startupFile: startupFile, jsonFile: jsonFile, daemonChild: true}, record)
+	if err != nil {
 		t.Fatalf("persistStartupOutputs: %v", err)
+	}
+	if updatedRecord.QRImagePath != "" {
+		t.Fatalf("daemon child should not set QR image path, got %q", updatedRecord.QRImagePath)
 	}
 	if _, err := os.Stat(startupFile); err != nil {
 		t.Fatalf("handoff file missing: %v", err)
 	}
 	if _, err := os.Stat(jsonFile); !os.IsNotExist(err) {
 		t.Fatalf("json file should not be written for daemon child, got err=%v", err)
+	}
+	if _, err := os.Stat(server.DeriveStartupQRFilePath(jsonFile)); !os.IsNotExist(err) {
+		t.Fatalf("QR file should not be written for daemon child, got err=%v", err)
 	}
 }
 
@@ -122,13 +129,46 @@ func TestPersistStartupOutputsSkipsJSONFileForDaemonChild(t *testing.T) {
 	jsonFile := filepath.Join(dir, "record.json")
 	record := server.NewStartupRecord("agent-managed", dir, "127.0.0.1", 41111, false, "", "", 1234, time.Unix(0, 0), nil)
 
-	if err := persistStartupOutputs(cliOptions{startupFile: startupFile, jsonFile: jsonFile, daemonChild: true}, record); err != nil {
+	updatedRecord, err := persistStartupOutputs(cliOptions{startupFile: startupFile, jsonFile: jsonFile, daemonChild: true}, record)
+	if err != nil {
 		t.Fatalf("persistStartupOutputs: %v", err)
+	}
+	if updatedRecord.QRImagePath != "" {
+		t.Fatalf("daemon child should not set QR image path, got %q", updatedRecord.QRImagePath)
 	}
 	if _, err := os.Stat(startupFile); err != nil {
 		t.Fatalf("startup handoff missing: %v", err)
 	}
 	if _, err := os.Stat(jsonFile); !os.IsNotExist(err) {
 		t.Fatalf("json file should not be written for daemon child, got err=%v", err)
+	}
+	if _, err := os.Stat(server.DeriveStartupQRFilePath(jsonFile)); !os.IsNotExist(err) {
+		t.Fatalf("QR file should not be written for daemon child, got err=%v", err)
+	}
+}
+
+func TestPersistStartupOutputsWritesJSONAndQRForForegroundJSONFile(t *testing.T) {
+	dir := t.TempDir()
+	jsonFile := filepath.Join(dir, "startup.json")
+	record := server.NewStartupRecord("foreground", dir, "127.0.0.1", 41112, false, "", "", 1234, time.Unix(0, 0), nil)
+
+	updatedRecord, err := persistStartupOutputs(cliOptions{jsonFile: jsonFile}, record)
+	if err != nil {
+		t.Fatalf("persistStartupOutputs: %v", err)
+	}
+
+	qrFile := server.DeriveStartupQRFilePath(jsonFile)
+	if updatedRecord.QRImagePath != qrFile {
+		t.Fatalf("QR image path = %q, want %q", updatedRecord.QRImagePath, qrFile)
+	}
+	data, err := os.ReadFile(jsonFile)
+	if err != nil {
+		t.Fatalf("read startup json: %v", err)
+	}
+	if !strings.Contains(string(data), `"qrImagePath": `) {
+		t.Fatalf("startup JSON missing qrImagePath: %s", string(data))
+	}
+	if _, err := os.Stat(qrFile); err != nil {
+		t.Fatalf("QR file missing: %v", err)
 	}
 }

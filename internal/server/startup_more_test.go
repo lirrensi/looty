@@ -139,3 +139,10 @@ func TestWriteStartupRecordFileReportsDirectoryErrors(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestWriteStartupQRCodeSVGFileRejectsEmptyPayload(t *testing.T) {
+	err := WriteStartupQRCodeSVGFile(filepath.Join(t.TempDir(), "startup-qr.svg"), "")
+	if err == nil || !strings.Contains(err.Error(), "empty payload") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

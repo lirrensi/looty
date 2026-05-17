@@ -1,8 +1,24 @@
+// FILE: web/src/main.js
+// PURPOSE: Bootstrap the standalone Looty client and bind discovery results into API connection state.
+// OWNS: App-level discovery startup, API base selection, manual connection flow.
+// EXPORTS: Alpine app registration side effects
+// DOCS: agent_chat/plan_qr-port-artifact_2026-05-17.md, docs/spec.md, docs/arch.md
+
 import Alpine from 'alpinejs'
 import './style.css'
 import { fileBrowser } from './components/fileBrowser.js'
 import { clipboardPanel } from './components/clipboard.js'
-import { discovery } from './components/discovery.js'
+import { discovery, resolveLootyPort } from './components/discovery.js'
+
+function buildApiBase(ip) {
+  const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
+
+  if (!window.location.protocol.startsWith('file:') && window.location.hostname === ip) {
+    return `${protocol}://${window.location.host}`
+  }
+
+  return `${protocol}://${ip}:${resolveLootyPort()}`
+}
 
 Alpine.data('app', () => ({
   connected: false,
@@ -37,8 +53,7 @@ Alpine.data('app', () => ({
       this.serverIP = ip
       this.connected = true
       this.status = 'connected'
-      const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-      window.API_BASE = `${protocol}://${ip}:41111`
+      window.API_BASE = buildApiBase(ip)
     } else {
       this.status = 'failed'
     }
@@ -54,8 +69,7 @@ Alpine.data('app', () => ({
       this.serverIP = this.manualIP
       this.connected = true
       this.status = 'connected'
-      const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-      window.API_BASE = `${protocol}://${this.manualIP}:41111`
+      window.API_BASE = buildApiBase(this.manualIP)
     }
   },
 }))

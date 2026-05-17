@@ -1,8 +1,8 @@
 // FILE: internal/server/startup.go
 // PURPOSE: Build, render, and persist structured startup metadata for foreground and background Looty launches.
 // OWNS: Startup record shape, address and URL derivation, JSON serialization, human output rendering, QR rendering, atomic record writes.
-// EXPORTS: StartupRecord, ProtocolForTLS, DeriveAddresses, DeriveURLs, NewStartupRecord, RenderStartupRecord, RenderStartupQRCode, WriteStartupRecordFile
-// DOCS: agent_chat/plan_daemon-mode_2026-05-17.md, docs/spec.md, docs/arch.md
+// EXPORTS: StartupRecord, ProtocolForTLS, DeriveAddresses, DeriveURLs, DeriveStartupQRFilePath, NewStartupRecord, RenderStartupRecord, RenderStartupQRCode, WriteStartupRecordFile, WriteStartupQRCodeSVGFile
+// DOCS: agent_chat/plan_qr-port-artifact_2026-05-17.md, docs/spec.md, docs/arch.md
 
 package server
 
@@ -13,10 +13,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mdp/qrterminal/v3"
+	"rsc.io/qr"
 )
 
 type StartupRecord struct {
@@ -33,6 +35,16 @@ type StartupRecord struct {
 	PID         int       `json:"pid,omitempty"`
 	StartedAt   time.Time `json:"startedAt,omitempty"`
 	HTMLPaths   []string  `json:"htmlPaths,omitempty"`
+	QRImagePath string    `json:"qrImagePath,omitempty"`
+}
+
+func DeriveStartupQRFilePath(jsonPath string) string {
+	ext := filepath.Ext(jsonPath)
+	base := strings.TrimSuffix(filepath.Base(jsonPath), ext)
+	if base == "" {
+		base = filepath.Base(jsonPath)
+	}
+	return filepath.Join(filepath.Dir(jsonPath), base+"-qr.svg")
 }
 
 func ProtocolForTLS(useTLS bool) string {
@@ -169,6 +181,54 @@ func WriteStartupRecordFile(path string, record StartupRecord) error {
 		return err
 	}
 	return writeAtomically(path, data)
+}
+
+func WriteStartupQRCodeSVGFile(path string, payload string) error {
+	data, err := renderStartupQRCodeSVG(payload)
+	if err != nil {
+		return err
+	}
+	return writeAtomically(path, data)
+}
+
+func renderStartupQRCodeSVG(payload string) ([]byte, error) {
+	if strings.TrimSpace(payload) == "" {
+		return nil, fmt.Errorf("render startup QR SVG: empty payload")
+	}
+
+	code, err := qr.Encode(payload, qr.M)
+	if err != nil {
+		return nil, fmt.Errorf("render startup QR SVG: %w", err)
+	}
+
+	const quietZone = 4
+	totalSize := code.Size + (quietZone * 2)
+
+	var builder strings.Builder
+	builder.Grow(totalSize * totalSize * 8)
+	builder.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	builder.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 `)
+	builder.WriteString(strconv.Itoa(totalSize))
+	builder.WriteString(" ")
+	builder.WriteString(strconv.Itoa(totalSize))
+	builder.WriteString(`" shape-rendering="crispEdges">` + "\n")
+	builder.WriteString(`<rect width="100%" height="100%" fill="#ffffff"/>` + "\n")
+
+	for y := 0; y < code.Size; y++ {
+		for x := 0; x < code.Size; x++ {
+			if !code.Black(x, y) {
+				continue
+			}
+			builder.WriteString(`<rect x="`)
+			builder.WriteString(strconv.Itoa(x + quietZone))
+			builder.WriteString(`" y="`)
+			builder.WriteString(strconv.Itoa(y + quietZone))
+			builder.WriteString(`" width="1" height="1" fill="#000000"/>` + "\n")
+		}
+	}
+
+	builder.WriteString(`</svg>` + "\n")
+	return []byte(builder.String()), nil
 }
 
 func writeAtomically(path string, data []byte) error {

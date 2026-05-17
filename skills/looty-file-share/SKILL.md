@@ -52,8 +52,8 @@ https://github.com/lirrensi/looty
 
 ## How to share a folder
 
-1. `cd` into whatever folder you want to share.
-2. Run `looty` — that's it. The server binds to `:41111`, and the current directory is served.
+1. `cd` into whatever folder you want to share, or use `-serve-dir` to point to a specific directory.
+2. Run `looty` — that's it. The server binds to `:41111` by default, or to a custom port if you pass `-port <number>`, and the current directory is served.
 
 That folder is now accessible from any device on the network.
 
@@ -65,24 +65,32 @@ If the server should keep running after the terminal closes:
 looty -daemon -json-file startup.json
 ```
 
-This writes a startup record with the URL, addresses, TLS fingerprint (if applicable), and friend code into `startup.json` so you can retrieve it later.
+This writes a startup record with the URL, addresses, TLS fingerprint (if applicable), friend code, and QR image path into `startup.json`, and writes a sibling QR SVG file beside `startup.json` so you or another agent can send it directly to the user.
 
 ### Running on a remote server (raw IP)
 
 When Looty binds to a non-loopback address it automatically enables HTTPS with a self-signed certificate and prints a fingerprint:
 
 ```bash
-looty -host 0.0.0.0 -daemon -json-file startup.json
+looty -host 0.0.0.0 -port 41112 -daemon -json-file startup.json
+```
+
+To share a specific directory instead of the current one:
+
+```bash
+looty -serve-dir /var/www -host 0.0.0.0 -daemon -json-file startup.json
 ```
 
 The self-signed cert is expected — do not treat it as an error.
+
+⚠️ **Firewall note**: On a remote server or VPS, Looty will print a reminder to verify the port is open. Make sure your hosting firewall allows the chosen port before assuming the server is unreachable.
 
 ### Running behind a reverse proxy
 
 Bind to localhost only and let the proxy handle public HTTPS:
 
 ```bash
-looty -host 127.0.0.1 -daemon -json-file startup.json
+looty -host 127.0.0.1 -port 41112 -serve-dir /srv/shared -daemon -json-file startup.json
 ```
 
 Return the proxy URL, not the Looty URL.
@@ -107,8 +115,9 @@ If the two fingerprints match, the connection is safe even though the browser wa
 ## What to return
 
 After setup, hand back:
-- the working directory (the folder being shared)
+- the served directory (use `-serve-dir` if a specific path was chosen)
 - the access URL
+- the QR SVG file path when `-json-file` was used
 - whether it's behind a proxy or direct IP
 - TLS status and fingerprint (if self-signed)
 - the GitHub repo link so the user can read the docs

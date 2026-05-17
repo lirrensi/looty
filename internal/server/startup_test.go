@@ -48,6 +48,7 @@ func TestStartupRecordJSONSerialization(t *testing.T) {
 		time.Date(2026, time.May, 17, 12, 0, 0, 0, time.UTC),
 		[]string{"C:/Users/rx/looty/looty.html"},
 	)
+	withTLS.QRImagePath = "C:/loot/startup-qr.svg"
 
 	data, err := withTLS.JSON()
 	if err != nil {
@@ -61,6 +62,9 @@ func TestStartupRecordJSONSerialization(t *testing.T) {
 	if !strings.Contains(jsonText, `"friendCode": "looty-brave-dolphin-4217"`) {
 		t.Fatalf("friend code missing from JSON: %s", jsonText)
 	}
+	if !strings.Contains(jsonText, `"qrImagePath": "C:/loot/startup-qr.svg"`) {
+		t.Fatalf("QR image path missing from JSON: %s", jsonText)
+	}
 
 	withoutTLS := NewStartupRecord("foreground", "C:/loot", "127.0.0.1", 41111, false, "", "", 999, time.Now(), nil)
 	data, err = withoutTLS.JSON()
@@ -68,7 +72,7 @@ func TestStartupRecordJSONSerialization(t *testing.T) {
 		t.Fatalf("JSON() error: %v", err)
 	}
 	jsonText = string(data)
-	if strings.Contains(jsonText, `"fingerprint"`) || strings.Contains(jsonText, `"friendCode"`) {
+	if strings.Contains(jsonText, `"fingerprint"`) || strings.Contains(jsonText, `"friendCode"`) || strings.Contains(jsonText, `"qrImagePath"`) {
 		t.Fatalf("unexpected TLS fields in JSON: %s", jsonText)
 	}
 
@@ -78,6 +82,16 @@ func TestStartupRecordJSONSerialization(t *testing.T) {
 	}
 	if decoded["primaryUrl"] != "http://localhost:41111" {
 		t.Fatalf("primaryUrl = %#v", decoded["primaryUrl"])
+	}
+}
+
+func TestDeriveStartupQRFilePath(t *testing.T) {
+	t.Parallel()
+
+	path := DeriveStartupQRFilePath(filepath.Join("C:\\loot", "startup.record.json"))
+	expected := filepath.Join("C:\\loot", "startup.record-qr.svg")
+	if path != expected {
+		t.Fatalf("DeriveStartupQRFilePath() = %q, want %q", path, expected)
 	}
 }
 
@@ -104,6 +118,42 @@ func TestWriteStartupRecordFileIsAtomicReplacement(t *testing.T) {
 	}
 
 	matches, err := filepath.Glob(filepath.Join(dir, "startup.json.*.tmp"))
+	if err != nil {
+		t.Fatalf("Glob error: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temporary files left behind: %#v", matches)
+	}
+}
+
+func TestWriteStartupQRCodeSVGFileIsAtomicReplacement(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "startup-qr.svg")
+
+	if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	if err := WriteStartupQRCodeSVGFile(path, "http://localhost:41111"); err != nil {
+		t.Fatalf("WriteStartupQRCodeSVGFile error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile error: %v", err)
+	}
+	text := string(data)
+	for _, expected := range []string{"<?xml version=", "<svg ", `<rect width="100%" height="100%" fill="#ffffff"/>`} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("SVG missing %q:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, "stale") {
+		t.Fatalf("startup QR file still contains stale content: %s", text)
+	}
+
+	matches, err := filepath.Glob(filepath.Join(dir, "startup-qr.svg.*.tmp"))
 	if err != nil {
 		t.Fatalf("Glob error: %v", err)
 	}

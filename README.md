@@ -33,7 +33,13 @@ Looty now has a few startup shapes:
 - **Programmatic / machine-readable**: `looty -daemon -json`
   - Emits startup details as JSON for scripts, agents, or other processes
 - **Save startup details to a file**: `looty -daemon -json-file startup.json`
-  - Writes the same startup record for later pickup
+  - Writes the same startup record for later pickup and a sibling QR SVG file that can be sent directly to the user
+
+You can change the listening port with `-port <number>`. The default remains `41111`.
+
+By default, Looty serves the current working directory. Use `-serve-dir <path>` to serve a different directory.
+
+When running on a remote server or VPS, Looty prints a startup reminder to check that the port is open in the firewall.
 
 For remote or non-loopback hosts, Looty auto-enables TLS and prints the certificate fingerprint/friend code so you can verify the server before connecting.
 
@@ -108,7 +114,7 @@ git clone https://github.com/lirrensi/looty.git
 cd looty
 
 # Install frontend dependencies
-cd web && npm install && cd ..
+cd web && pnpm install && cd ..
 
 # Build
 make build
